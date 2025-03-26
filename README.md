@@ -16,6 +16,7 @@ Example of input file:
 
 Example of output file:
 
+![image](https://github.com/user-attachments/assets/7a830349-8427-4233-b873-52b5e495ff3d)
 
 
 **Disclaimer:** The sample scripts are provided AS IS without warranty of any kind. 
@@ -26,4 +27,4 @@ In no event shall Microsoft, its authors, or anyone else involved in the creatio
 production, or delivery of the scripts be liable for any damages whatsoever 
 (including, without limitation, damages for loss of business profits, business interruption, 
 loss of business information, or other pecuniary loss) arising out of the use of or inability 
-o use the sample scripts or documentation, even if Microsoft has been advised of the possibility of such damages.
+to use the sample scripts or documentation, even if Microsoft has been advised of the possibility of such damages.
