@@ -56,7 +56,7 @@ $tenant = "9cfc42cb-51da-4055-87e9-b20a170b6ba3"
 # Script Parameters
 $LoginName = "c:0-.f|rolemanager|spo-grid-all-users/$tenant"
 $startime = Get-Date -Format "yyyyMMdd_HHmmss"
-$logFilePath = "$env:TEMP\Remove_EEEU_From_Files_$startime.txt"
+$logFilePath = "$env:TEMP\Remove_EEEU_From_Files_in_Sites_$startime.txt"
 
 # Path and file names
 $inputFilePath = "C:\temp\oversharedurls.txt" # Path to the input file containing site URLs
