@@ -61,7 +61,7 @@ $FilePath = "/Documents/testdoc1.docx" # Path relative to the root of the OneDri
 #Script Parameters
 $LoginName = "c:0-.f|rolemanager|spo-grid-all-users/$tenant"
 $startime = Get-Date -Format "yyyyMMdd_HHmmss"
-$logFilePath = "$env:TEMP\Add_EEEU_From_File_$startime.txt"
+$logFilePath = "$env:TEMP\Remove_EEEU_From_File_$startime.txt"
 
 
 # Setup logging
