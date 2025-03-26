@@ -39,7 +39,7 @@
     The script requires appropriate permissions to modify file permissions in SharePoint Online.
 
         Authors: Mike Lee
-    Date: 3/125/2025
+    Date: 3/25/2025
 
 .DISCLAIMER
     Disclaimer: The sample scripts are provided AS IS without warranty of any kind. 
