@@ -38,7 +38,7 @@
     Ensure the PnP.PowerShell module is installed and properly configured.
     The script requires appropriate permissions to modify file permissions in SharePoint Online.
 
-        Authors: Mike Lee
+    Authors: Mike Lee
     Date: 3/25/2025
 
 .DISCLAIMER
