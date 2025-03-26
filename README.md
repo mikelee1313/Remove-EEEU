@@ -8,6 +8,16 @@ Scripts to handle EEEU "Everyone Except for External Users" from the file level 
 
 **Remove_EEEU_From_Files.ps1** =  Removes ("EEEU") from all files including subfolders in a SharePoint Online document library.
 
+**Remove-EEEUFromFilesinSites.ps1**  = This script will take a list of URLs and remove EEEU from all files from all listed sites from within the input file.
+
+Example of input file:
+
+![image](https://github.com/user-attachments/assets/2d01a23b-5896-4c26-ba29-dc1421edb305)
+
+Example of output file:
+
+
+
 **Disclaimer:** The sample scripts are provided AS IS without warranty of any kind. 
 Microsoft further disclaims all implied warranties including, without limitation, 
 any implied warranties of merchantability or of fitness for a particular purpose. 
