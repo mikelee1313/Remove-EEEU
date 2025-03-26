@@ -31,7 +31,7 @@
     Ensure the Azure AD application has appropriate permissions to access and modify SharePoint Online resources.
 
     Authors: Mike Lee
-    Date: 3/125/2025
+    Date: 3/25/2025
 
 .DISCLAIMER
     Disclaimer: The sample scripts are provided AS IS without warranty of any kind. 
