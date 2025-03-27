@@ -14,6 +14,9 @@ Example Output:
 ![image](https://github.com/user-attachments/assets/f2530de2-0194-4857-9088-156b13806646)
 
 
+![image](https://github.com/user-attachments/assets/18ca2dd1-4108-4d94-beae-cbf7d006d8d8)
+
+
 **Remove-EEEU.ps1** = Script to remove EEEU from a single file
 
 **Remove_EEEU_From_Files.ps1** =  Removes ("EEEU") from all files including subfolders in a SharePoint Online document library.
