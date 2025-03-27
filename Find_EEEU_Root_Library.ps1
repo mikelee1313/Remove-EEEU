@@ -86,7 +86,7 @@ function Test-EEEUDocumentLibrary {
         Connect-PnPOnline -Url $siteUrl -ClientId $appID -Thumbprint $thumbprint -Tenant $tenant -ErrorAction Stop
 
         # Get the default document library
-        $documentLibrary = Get-PnPList -Identity "doclib2"
+        $documentLibrary = Get-PnPList -Identity "documents"
 
         # Get RoleAssignments for the document library
         $roleAssignments = Get-PnPProperty -ClientObject $documentLibrary -Property RoleAssignments
