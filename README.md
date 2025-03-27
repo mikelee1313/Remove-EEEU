@@ -9,6 +9,11 @@ Scripts to handle EEEU "Everyone Except for External Users" from the file level 
 **Find_EEEU_Root_Library.ps1** = This script will scan all OneDrive sites for "Everyone Except External Users" (EEEU) permissions at root and document library level.
 This script help you prepare for **MC1013464** -(Updated) We will remove the EEEU sharing permission from root web and default document library in OneDrive’s.
 
+Example Output:
+
+![image](https://github.com/user-attachments/assets/f2530de2-0194-4857-9088-156b13806646)
+
+
 **Remove-EEEU.ps1** = Script to remove EEEU from a single file
 
 **Remove_EEEU_From_Files.ps1** =  Removes ("EEEU") from all files including subfolders in a SharePoint Online document library.
