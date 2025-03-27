@@ -47,7 +47,6 @@ Connects to SharePoint Online and scans all OneDrive sites for EEEU permissions.
 - Logs all activities and results to a log file
 - Exports findings to a CSV file
 #>
-#requires -modules "PnP.PowerShell"
 
 $appID = "1e488dc4-1977-48ef-8d4d-9856f4e04536"
 $thumbprint = "5EAD7303A5C7E27DB4245878AD554642940BA082"
@@ -87,7 +86,7 @@ function Test-EEEUDocumentLibrary {
         Connect-PnPOnline -Url $siteUrl -ClientId $appID -Thumbprint $thumbprint -Tenant $tenant -ErrorAction Stop
 
         # Get the default document library
-        $documentLibrary = Get-PnPList -Identity "Documents"
+        $documentLibrary = Get-PnPList -Identity "doclib2"
 
         # Get RoleAssignments for the document library
         $roleAssignments = Get-PnPProperty -ClientObject $documentLibrary -Property RoleAssignments
@@ -113,8 +112,10 @@ function Test-EEEUDocumentLibrary {
                         # Output object
                         [PSCustomObject] @{
                             SiteUrl                = $siteUrl
+                            Owner                  = $personalSite.Owner
                             Claim                  = $member.LoginName
                             RoleDefinitionBindings = $roleDefinitionBindings.Name -join ","
+                            LibraryName            = $documentLibrary.Title
                         }
                     }
                     else { 
@@ -165,6 +166,7 @@ $results = foreach ( $personalSite in $personalSites ) {
                             Owner                  = $personalSite.Owner
                             Claim                  = $member.LoginName
                             RoleDefinitionBindings = $roleDefinitionBindings.Name -join ","
+                            LibraryName            = "RootWeb"
                         }
                     }
                     else { 
