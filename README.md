@@ -10,6 +10,8 @@ Output Example:
 
 Note: This output CSV file can be directly used with the **Remove-EEEUFromFileList.ps1** to mitigate oversharing using the input list
 
+![image](https://github.com/user-attachments/assets/eb0a6d81-624c-4f3a-9b64-c718e2503b04)
+
 
 **Remove-EEEUFromFileList.ps1** = Removes EEEU from an input list of files across site. The file list should contain the URL and File Path.
 
@@ -17,8 +19,6 @@ Example input from Find-EEEUInSites.ps1
 
 ![image](https://github.com/user-attachments/assets/e8ee5efd-e2bc-4a10-a82d-02794f7d9479)
 
-
-![image](https://github.com/user-attachments/assets/eb0a6d81-624c-4f3a-9b64-c718e2503b04)
 
 
 
