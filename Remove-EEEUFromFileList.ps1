@@ -13,7 +13,7 @@
 .NOTES
     File Name      : Remove-EEEUFromFileList.ps1
     Author         : Mike Lee
-    Date           : 3/26/25
+    Date           : 3/31/25
 
 .DISCLAIMER
     Disclaimer: The sample scripts are provided AS IS without warranty of any kind. 
@@ -112,7 +112,7 @@ function Remove-EEEUfromFile {
                 foreach ($role in $rolelevel) {
                     Write-Host "Retrieved file: $($file.FieldValues.FileLeafRef) on $SiteURL" -ForegroundColor Yellow
                     Write-Log "Retrieved file:  $($file.FieldValues.FileLeafRef) on $SiteURL"
-                    Set-PnPListItemPermission -List "Documents" -Identity $file.Id -RemoveRole $role.Name -User $roleuser
+                    Set-PnPListItemPermission -List $file.ParentList.Title -Identity $file.Id -RemoveRole $role.Name -User $roleuser
                     Write-Host "Removed Role: $($role.Name) from User: $($roleuser) in File: $($file.FieldValues.FileLeafRef)" -ForegroundColor Yellow
                     Write-Log "Removed Role: $($role.Name) from User: $($roleuser) in File: $($file.FieldValues.FileLeafRef)"
                 }
@@ -126,7 +126,7 @@ function Remove-EEEUfromFile {
 }
 
 # Read the CSV file and process each row
-$csvFilePath = "C:\temp\EEEUFileList.csv"
+$csvFilePath = "C:\Users\michlee\AppData\Local\Temp\Find_EEEU_In_Sites_20250331_183900.csv"
 $csvData = Import-Csv -Path $csvFilePath
 foreach ($row in $csvData) {
 
@@ -139,6 +139,11 @@ foreach ($row in $csvData) {
     Connect-ToSharePoint -SiteURL $SiteURL
     
     $file = Get-File -FilePath $FilePath
+    # Expand the ParentList property if needed
+    if ($file) {
+        Get-PnPProperty -ClientObject $file -Property ParentList
+        # Write-Log "Expanded ParentList property for file: $($file.FieldValues.FileLeafRef)"
+    }
     
     Remove-EEEUfromFile -file $file
 }
