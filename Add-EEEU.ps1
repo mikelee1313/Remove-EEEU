@@ -94,7 +94,12 @@ try {
 
 # Get the file
 try {
-    $file = Get-PnPFile -Url $FilePath -AsListItem
+        $file = Get-File -FilePath $FilePath
+    # Expand the ParentList property if needed
+    if ($file) {
+        Get-PnPProperty -ClientObject $file -Property ParentList
+        # Write-Log "Expanded ParentList property for file: $($file.FieldValues.FileLeafRef)"
+    }
     Write-Host "Retrieved file: $($file.FieldValues.FileLeafRef) on $SiteURL" -ForegroundColor Green
     Write-Log "Retrieved file: $($file.FieldValues.FileLeafRef) on $SiteURL"
 } catch {
@@ -115,7 +120,7 @@ function Add-EEEUtoFile {
         # Add EEEU to file
         #set role "Full Control", Design, Edit, Read, Contribute,Restricted view
         $role = "Read"
-        Set-PnPListItemPermission -List "Documents" -Identity $file.Id -AddRole $role -User $LoginName
+        Set-PnPListItemPermission $file.ParentList.Title -Identity $file.Id -AddRole $role -User $LoginName
         Write-Host "Added EEEU to File: $($file.FieldValues.FileLeafRef) with role $role" -ForegroundColor Cyan
         Write-Log "Added EEEU to File: $($file.FieldValues.FileLeafRef) with role $role"
     } catch {
