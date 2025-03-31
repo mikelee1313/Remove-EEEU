@@ -182,8 +182,8 @@ function Find-EEEUinFiles {
             }
             if ($roles.Count -gt 0) {
                 $global:EEEUOccurrences += [PSCustomObject]@{
-                    SiteURL   = $SiteURL
-                    FileName  = $file.FieldValues.FileRef
+                    Url   = $SiteURL
+                    ItemURL  = $file.FieldValues.FileRef
                     RoleNames = ($roles -join ", ")
                 }
                 Write-Host "Located EEEU in file: $($file.FieldValues.FileLeafRef) on $SiteURL" -ForegroundColor Green
