@@ -1,11 +1,12 @@
 <#
 .SYNOPSIS
-    Finds instances of Everyone and Every User (EEEU) permissions in SharePoint Online sites.
+    Scans SharePoint Online sites to identify occurrences of the "Everyone Except External Users" (EEEU) group in file permissions.
 
 .DESCRIPTION
-    This script scans specified SharePoint Online sites to identify files with Everyone and Every User permissions.
-    It connects to each site using app-only authentication with a certificate, scans all document libraries and lists,
-    and reports any instances where the special "Everyone and Every User" principal has permissions.
+    This script connects to SharePoint Online using provided tenant-level credentials and iterates through a list of 
+    site URLs specified in an input file. It recursively scans document libraries and lists (excluding specified folders) 
+    to locate files where the "Everyone Except External Users" group has permissions assigned (excluding "Limited Access"). 
+    The script logs its operations and outputs the results to a CSV file, detailing the site URL, file URL, and assigned roles.
 
 .PARAMETER None
     This script does not accept parameters via the command line. Configuration is done within the script.
@@ -56,6 +57,7 @@ $outputFilePath = "$env:TEMP\Find_EEEU_In_Sites_$startime.csv"
 
 # Path and file names
 $inputFilePath = "C:\temp\oversharedurls.txt" # Path to the input file containing site URLs
+
 # Setup logging
 function Write-Log {
     param (
