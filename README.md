@@ -8,18 +8,15 @@ Output Example:
 
 ![image](https://github.com/user-attachments/assets/03c6c701-6682-4198-af46-04d84977822c)
 
-Note: This output CSV file and be directly used with the **Remove-EEEUFromFileList.ps1** to mitigate oversharing using the input list
+Note: This output CSV file can be directly used with the **Remove-EEEUFromFileList.ps1** to mitigate oversharing using the input list
+
 
 **Remove-EEEUFromFileList.ps1** = Removes EEEU from an input list of files across site. The file list should contain the URL and File Path.
 
-Example:
+Example input from Find-EEEUInSites.ps1
 
 ![image](https://github.com/user-attachments/assets/e8ee5efd-e2bc-4a10-a82d-02794f7d9479)
 
-
-Example output:
-
-![image](https://github.com/user-attachments/assets/6a0eea17-95ac-4ed1-9968-a6c7e7263daa)
 
 
 
