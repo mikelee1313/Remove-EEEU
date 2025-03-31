@@ -17,8 +17,6 @@ Note: This output CSV file can be directly used with the **Remove-EEEUFromFileLi
 
 Example input from Find-EEEUInSites.ps1
 
-![image](https://github.com/user-attachments/assets/e8ee5efd-e2bc-4a10-a82d-02794f7d9479)
-
 
 ![image](https://github.com/user-attachments/assets/61962bfa-1d1c-4fb8-8994-a20ca70ce0f9)
 
