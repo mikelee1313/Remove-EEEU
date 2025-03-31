@@ -14,11 +14,12 @@ Note: This output CSV file and be directly used with the **Remove-EEEUFromFileLi
 
 Example:
 
-![image](https://github.com/user-attachments/assets/db97140e-282c-45b4-b062-accf760206d2)
+![image](https://github.com/user-attachments/assets/e8ee5efd-e2bc-4a10-a82d-02794f7d9479)
+
 
 Example output:
 
-![image](https://github.com/user-attachments/assets/38aa81c6-d03f-4e41-bcc7-8c97785dc5ea)
+![image](https://github.com/user-attachments/assets/6a0eea17-95ac-4ed1-9968-a6c7e7263daa)
 
 
 
