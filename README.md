@@ -18,6 +18,9 @@ Example input from Find-EEEUInSites.ps1
 ![image](https://github.com/user-attachments/assets/e8ee5efd-e2bc-4a10-a82d-02794f7d9479)
 
 
+![image](https://github.com/user-attachments/assets/eb0a6d81-624c-4f3a-9b64-c718e2503b04)
+
+
 
 
 **Add-EEEU.ps1** = Script to add EEEU to files for testing
