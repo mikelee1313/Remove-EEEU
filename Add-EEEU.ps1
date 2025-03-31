@@ -57,7 +57,6 @@
     Executes the script to add the "Everyone Except External Users" group with "Read" permissions to the specified file.
 
 #>
-
 #Tenant Level Information
 $appID = "1e488dc4-1977-48ef-8d4d-9856f4e04536"
 $thumbprint = "5EAD7303A5C7E27DB4245878AD554642940BA082"
@@ -65,7 +64,8 @@ $tenant = "9cfc42cb-51da-4055-87e9-b20a170b6ba3"
 
 #path and file names
 $SiteURL = "https://m365cpi13246019-my.sharepoint.com/personal/admin_m365cpi13246019_onmicrosoft_com"
-$FilePath = "/Documents/testdoc1.docx" # Path relative to the root of the OneDrive library
+$FilePath = "documents/ssssss.docx" # Path relative to the root of the OneDrive library
+#$FilePath = "documents/files/book 1.xlsx" # Path relative to the root of the OneDrive library
 
 #Script Parameters
 $LoginName = "c:0-.f|rolemanager|spo-grid-all-users/$tenant"
@@ -87,14 +87,15 @@ function Write-Log {
 try {
     Connect-PnPOnline -Url $SiteURL -ClientId $appID -Thumbprint $thumbprint -Tenant $tenant
     Write-Log "Connected to SharePoint Online"
-} catch {
+}
+catch {
     Write-Log "Failed to connect to SharePoint Online: $_" "ERROR"
     throw $_
 }
 
 # Get the file
 try {
-        $file = Get-File -FilePath $FilePath
+    $file = Get-PnPFile -Url $FilePath -AsListItem
     # Expand the ParentList property if needed
     if ($file) {
         Get-PnPProperty -ClientObject $file -Property ParentList
@@ -102,7 +103,8 @@ try {
     }
     Write-Host "Retrieved file: $($file.FieldValues.FileLeafRef) on $SiteURL" -ForegroundColor Green
     Write-Log "Retrieved file: $($file.FieldValues.FileLeafRef) on $SiteURL"
-} catch {
+}
+catch {
     Write-Log "Failed to retrieve file: $_" "ERROR"
     throw $_
 }
@@ -120,10 +122,11 @@ function Add-EEEUtoFile {
         # Add EEEU to file
         #set role "Full Control", Design, Edit, Read, Contribute,Restricted view
         $role = "Read"
-        Set-PnPListItemPermission $file.ParentList.Title -Identity $file.Id -AddRole $role -User $LoginName
+        Set-PnPListItemPermission -List $file.ParentList.Title -Identity $file.Id -AddRole $role -User $LoginName
         Write-Host "Added EEEU to File: $($file.FieldValues.FileLeafRef) with role $role" -ForegroundColor Cyan
         Write-Log "Added EEEU to File: $($file.FieldValues.FileLeafRef) with role $role"
-    } catch {
+    }
+    catch {
         Write-Log "Failed to add EEEU to file: $_" "ERROR"
         throw $_
     }
