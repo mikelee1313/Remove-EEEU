@@ -12,8 +12,15 @@ This repository contains a collection of PowerShell scripts designed to manage a
 
 ## Repository Contents
 
-- **Script1.ps1**: Description of what Script1 does.
-- **Script2.ps1**: Description of what Script2 does.
+- **Add-EEEU.ps1**: 
+- **Add-EEEUtoOneDrive-RootandLibrary.ps1**:
+- **Find-EEEUInSites.ps1**:
+- **Find_EEEU_Root_Library.ps1**:
+- **Find_and_Remove_EEEU_From_Files_in_Site.ps1**:
+- **Remove-EEEUFromFileList.ps1**:
+- **Remove-EEEU_from_File.ps1**:
+- **Remove-EEEU_from_Files_in_Sites_List.ps1**:
+
 <!-- Add descriptions for each script in the repository -->
 
 ## Prerequisites
