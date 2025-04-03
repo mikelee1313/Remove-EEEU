@@ -27,9 +27,9 @@ This repository contains a collection of PowerShell scripts designed to manage a
 
 Before running these scripts, ensure you have the following:
 
-- PowerShell 5.1 or later
-- SharePoint Online Management Shell
-- Necessary permissions to execute scripts on SharePoint Online
+- PowerShell 7.2
+- PNP PowerShell Module
+- Necessary Graph permissions to execute scripts on SharePoint Online
 
 ## Usage
 
@@ -43,7 +43,7 @@ Before running these scripts, ensure you have the following:
 
 3. Run the desired script:
     ```sh
-    .\Script1.ps1
+    .\Find-EEEUInSites.ps1
     ```
 
 4. Follow any on-screen instructions provided by the script.
