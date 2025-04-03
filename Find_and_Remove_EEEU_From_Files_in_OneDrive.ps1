@@ -1,6 +1,6 @@
 <#
 .SYNOPSIS
-    Removes specific user permissions ("EEEU") from files in a SharePoint Online document library.
+    Find and Removes specific user permissions ("EEEU") from files in a Onerive Site.
 
 .DESCRIPTION
     This script connects to a specified SharePoint Online site using application credentials (Client ID and certificate thumbprint).
@@ -53,7 +53,7 @@
     to use the sample scripts or documentation, even if Microsoft has been advised of the possibility of such damages.
 
 .EXAMPLE
-    ./Find_and_Remove_EEEU_From_Files_in_Site.ps1
+    ./Find_and_Remove_EEEU_From_Files_in_OneDrive.ps1
 
     Executes the script with predefined parameters, connects to SharePoint Online, and removes specified user permissions from files.
 
