@@ -16,7 +16,7 @@ This repository contains a collection of PowerShell scripts designed to manage a
 - **Add-EEEUtoOneDrive-RootandLibrary.ps1**: Script to add Everyone Except External Users (EEEU) permissions to a SharePoint site and its document library.
 - **Find-EEEUInSites.ps1**: Scans SharePoint Online sites to identify occurrences of the "Everyone Except External Users" (EEEU) group in file permissions.
 - **Find_EEEU_Root_Library.ps1**: Scans OneDrive sites for Everyone Except External Users (EEEU) permissions at root and document library level.
-- **Find_and_Remove_EEEU_From_Files_in_OneDrive.ps1**:
+- **Find_and_Remove_EEEU_From_Files_in_OneDrive.ps1**: Find and Removes specific user permissions ("EEEU") from files in a Onerive Site.
 - **Remove-EEEUFromFileList.ps1**:
 - **Remove-EEEU_from_File.ps1**:
 - **Remove-EEEU_from_Files_in_Sites_List.ps1**:
