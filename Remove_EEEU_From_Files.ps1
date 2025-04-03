@@ -53,7 +53,7 @@
     to use the sample scripts or documentation, even if Microsoft has been advised of the possibility of such damages.
 
 .EXAMPLE
-    ./Remove_EEEU_From_Files.ps1
+    ./Find_Remove_EEEU_From_Files_in_Site.ps1
 
     Executes the script with predefined parameters, connects to SharePoint Online, and removes specified user permissions from files.
 
