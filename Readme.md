@@ -12,7 +12,7 @@ This repository contains a collection of PowerShell scripts designed to manage a
 
 ## Repository Contents
 
-- **Add-EEEU.ps1**: 
+- **Add-EEEU.ps1**:  Adds the "Everyone Except External Users" (EEEU) group with specified permissions to a file in SharePoint Online.
 - **Add-EEEUtoOneDrive-RootandLibrary.ps1**:
 - **Find-EEEUInSites.ps1**:
 - **Find_EEEU_Root_Library.ps1**:
