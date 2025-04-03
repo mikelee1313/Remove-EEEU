@@ -37,13 +37,11 @@ Example Output:
 ![image](https://github.com/user-attachments/assets/18ca2dd1-4108-4d94-beae-cbf7d006d8d8)
 
 
-**Remove-EEEU.ps1** = Script to remove EEEU from a single file
+**Remove-EEEU_from_File.ps1** = Script to remove EEEU from a single file
 
+**Find_and_Remove_EEEU_From_Files_in_OneDrive.ps1** =  Removes ("EEEU") from all files including subfolders in a SharePoint Online document library.
 
-**Remove_EEEU_From_Files.ps1** =  Removes ("EEEU") from all files including subfolders in a SharePoint Online document library.
-
-
-**Remove-EEEUFromFilesinSites.ps1**  = This script will take a list of URLs and remove EEEU from all files from all listed sites from within the input file.
+**Remove-EEEU_from_Files_in_Sites_List.ps1**  = This script will take a list of URLs and remove EEEU from all files from all listed sites from within the input file.
 
 Example of input file:
 
