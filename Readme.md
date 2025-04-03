@@ -19,7 +19,7 @@ This repository contains a collection of PowerShell scripts designed to manage a
 - **Find_and_Remove_EEEU_From_Files_in_OneDrive.ps1**: Find and Removes specific user permissions ("EEEU") from files in a Onerive Site.
 - **Remove-EEEUFromFileList.ps1**: Script to remove Everyone Except External Users (EEEU) permissions from files listed in a CSV.
 - **Remove-EEEU_from_File.ps1**: Removes specific permissions (EEEU) from a SharePoint Online file.
-- **Remove-EEEU_from_Files_in_Sites_List.ps1**:
+- **Remove-EEEU_from_Files_in_Sites_List.ps1**: Removes "Everyone except external users" (EEEU) permissions from files using a list of SharePoint Online and OneDrive sites.
 
 <!-- Add descriptions for each script in the repository -->
 
