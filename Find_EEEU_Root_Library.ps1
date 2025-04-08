@@ -21,6 +21,7 @@ The script generates two outputs:
 File Name      : Find_EEEU_Root_Library.ps1
 Author         : Mike Lee
 Date Created   : 3/27/25
+Date Updated   : 4/8/25 - Added Suport to handle throttling.
 Prerequisite   : PnP.PowerShell module
                  App registration with Sites.FullControl.All permission
 
@@ -46,6 +47,7 @@ Connects to SharePoint Online and scans all OneDrive sites for EEEU permissions.
 - For each OneDrive site, checks if EEEU permissions exist on the default document library
 - Logs all activities and results to a log file
 - Exports findings to a CSV file
+- Handles API throttling with automatic retries based on Retry-After headers
 #>
 
 $appID = "1e488dc4-1977-48ef-8d4d-9856f4e04536"
@@ -55,6 +57,7 @@ $spadmin = "m365cpi13246019"
 
 $startime = Get-Date -Format "yyyyMMdd_HHmmss"
 $logFilePath = "$env:TEMP\Find_EEEU_Root_Library_$startime.txt"
+$maxRetries = 5  # Maximum number of retries for throttled requests
 
 function Write-Log {
     param (
@@ -64,49 +67,122 @@ function Write-Log {
     $timestamp = Get-Date -Format "yyyy-MM-dd HH:mm:ss"
     $logMessage = "$timestamp - $level - $message"
     Add-Content -Path $logFilePath -Value $logMessage
+    
+    # Also output to console based on log level
+    switch ($level) {
+        "ERROR" { Write-Host $logMessage -ForegroundColor Red }
+        "WARNING" { Write-Host $logMessage -ForegroundColor Yellow }
+        "INFO" { Write-Host $logMessage -ForegroundColor White }
+        "THROTTLE" { Write-Host $logMessage -ForegroundColor Cyan }
+        default { Write-Host $logMessage }
+    }
 }
 
-# requires SharePoint > Application > Sites.FullControl.All
-Connect-PnPOnline -ClientId $appID -Thumbprint $thumbprint -Tenant $tenant -Url "https://$spadmin-admin.sharepoint.com" -ErrorAction Stop
+function Invoke-PnPWithRetry {
+    param (
+        [scriptblock]$ScriptBlock,
+        [string]$Operation,
+        [int]$MaxRetries = $maxRetries
+    )
+    
+    $retryCount = 0
+    $success = $false
+    $result = $null
+    
+    while (-not $success -and $retryCount -lt $MaxRetries) {
+        try {
+            $result = & $ScriptBlock
+            $success = $true
+        }
+        catch {
+            # Check if the error is due to throttling (429 Too Many Requests)
+            if ($_.Exception.Response -and $_.Exception.Response.StatusCode -eq 429) {
+                $retryCount++
+                
+                # Extract retry-after header if present
+                $retryAfterSeconds = 10  # Default retry delay
+                if ($_.Exception.Response.Headers -and $_.Exception.Response.Headers["Retry-After"]) {
+                    $retryAfterSeconds = [int]$_.Exception.Response.Headers["Retry-After"]
+                }
+                
+                Write-Log "Throttling detected during $Operation. Retry $retryCount of $MaxRetries. Waiting $retryAfterSeconds seconds..." -level "THROTTLE"
+                Start-Sleep -Seconds $retryAfterSeconds
+            }
+            else {
+                # If it's not a throttling error, rethrow
+                Write-Log "Error during $Operation : $($_.Exception.Message)" -level "ERROR"
+                throw $_
+            }
+        }
+    }
+    
+    if (-not $success) {
+        Write-Log "Failed to complete $Operation after $MaxRetries retries" -level "ERROR"
+        throw "Failed to complete $Operation after $MaxRetries retries"
+    }
+    
+    return $result
+}
 
-# pull all sites and filter out non-onedrive sites
-$personalSites = Get-PnPTenantSite -IncludeOneDriveSites | Where-Object -Property Template -match "SPSPERS"
+# Connect to SharePoint Admin Center with retry logic
+Write-Log "Connecting to SharePoint Admin Center" -level "INFO"
+Invoke-PnPWithRetry -ScriptBlock {
+    Connect-PnPOnline -ClientId $appID -Thumbprint $thumbprint -Tenant $tenant -Url "https://$spadmin-admin.sharepoint.com" -ErrorAction Stop
+} -Operation "Connect to SharePoint Admin Center"
+
+# Retrieve OneDrive sites with retry logic
+Write-Log "Retrieving OneDrive sites" -level "INFO"
+$personalSites = Invoke-PnPWithRetry -ScriptBlock {
+    Get-PnPTenantSite -IncludeOneDriveSites | Where-Object -Property Template -match "SPSPERS"
+} -Operation "Retrieve OneDrive sites"
 
 # Function to check for EEEU at the default document library level
 function Test-EEEUDocumentLibrary {
     param (
-        [string]$siteUrl
+        [string]$siteUrl,
+        [object]$personalSite
     )
 
-    Write-Host "[$(Get-Date)] - Checking default document library for EEEU: $siteUrl"
-    Write-Log "[$(Get-Date)] - Checking default document library for EEEU: $siteUrl"
+    #Write-Log "Checking for EEEU: $siteUrl" -level "INFO"
 
     try {
-        # Connect to the site
-        Connect-PnPOnline -Url $siteUrl -ClientId $appID -Thumbprint $thumbprint -Tenant $tenant -ErrorAction Stop
+        # Connect to the site with retry logic
+        Invoke-PnPWithRetry -ScriptBlock {
+            Connect-PnPOnline -Url $siteUrl -ClientId $appID -Thumbprint $thumbprint -Tenant $tenant -ErrorAction Stop
+        } -Operation "Connect to site $siteUrl"
 
-        # Get the default document library
-        $documentLibrary = Get-PnPList -Identity "documents"
+        # Get the default document library with retry logic
+        $documentLibrary = Invoke-PnPWithRetry -ScriptBlock {
+            Get-PnPList -Identity "documents"
+        } -Operation "Get document library at $siteUrl"
 
-        # Get RoleAssignments for the document library
-        $roleAssignments = Get-PnPProperty -ClientObject $documentLibrary -Property RoleAssignments
+        # Get RoleAssignments for the document library with retry logic
+        $roleAssignments = Invoke-PnPWithRetry -ScriptBlock {
+            Get-PnPProperty -ClientObject $documentLibrary -Property RoleAssignments
+        } -Operation "Get role assignments for document library at $siteUrl"
 
         # Enumerate RoleAssignments
-        foreach ( $roleAssignment in $roleAssignments ) {
-            # Pull principal LoginName
-            $null = Get-PnPProperty -ClientObject $roleAssignment.Member -Property LoginName
+        foreach ($roleAssignment in $roleAssignments) {
+            # Pull principal LoginName with retry logic
+            Invoke-PnPWithRetry -ScriptBlock {
+                Get-PnPProperty -ClientObject $roleAssignment.Member -Property LoginName | Out-Null
+            } -Operation "Get member login name at $siteUrl"
 
             # Enumerate principals
-            foreach ( $member in $roleAssignment.Member ) {
+            foreach ($member in $roleAssignment.Member) {
                 # Check if principal is EEEU
-                if ( $member.LoginName -match "spo-grid-all-users" ) {
-                    # Hydrate RoleDefinitionBindings (permissions)
-                    $null = Get-PnPProperty -ClientObject $roleAssignment -Property RoleDefinitionBindings
+                if ($member.LoginName -match "spo-grid-all-users") {
+                    # Hydrate RoleDefinitionBindings (permissions) with retry logic
+                    Invoke-PnPWithRetry -ScriptBlock {
+                        Get-PnPProperty -ClientObject $roleAssignment -Property RoleDefinitionBindings | Out-Null
+                    } -Operation "Get role definition bindings at $siteUrl"
 
-                    # Filter out hidden permissions
-                    $roleDefinitionBindings = $roleAssignment.RoleDefinitionBindings | Where-Object -Property Hidden -eq $false
-                    if ( $roleDefinitionBindings ) {
-                        Write-Host "Found EEEU in Document Library: $($member.LoginName) on $siteUrl" -ForegroundColor Red
+                    # Filter out hidden permissions and Limited Access
+                    $roleDefinitionBindings = $roleAssignment.RoleDefinitionBindings | Where-Object { 
+                        -not $_.Hidden -and $_.Name -ne "Limited Access" 
+                    }
+                    
+                    if ($roleDefinitionBindings) {
                         Write-Log "Found EEEU in Document Library: $($member.LoginName) on $siteUrl" -level "WARNING"
                         
                         # Output object
@@ -126,64 +202,86 @@ function Test-EEEUDocumentLibrary {
         }
     }
     catch {
-        Write-Host "Error processing document library: $($_)" -ForegroundColor Red
+        Write-Log "Error processing document library: $($_)" -level "ERROR"
     }
 }
 
-# enumerate onedrive sites
-$results = foreach ( $personalSite in $personalSites ) {
-    Write-Host "Checking Root for EEEU on: $($personalSite.Url)"
-    Write-Log "Checking Root for EEEU on: $($personalSite.Url)"
+# Initialize results array
+$results = @()
+$processedCount = 0
+$totalSites = $personalSites.Count
 
+# Enumerate OneDrive sites
+foreach ($personalSite in $personalSites) {
+    $processedCount++
+    $percentComplete = [math]::Round(($processedCount / $totalSites) * 100, 2)
+    Write-Log "Processing site $processedCount of $totalSites ($percentComplete%): $($personalSite.Url)" -level "INFO"
+    
     try {
-        # connect to the onedrive site
-        Connect-PnPOnline -Url $personalSite.Url -ClientId $appID -Thumbprint $thumbprint -Tenant $tenant -ErrorAction Stop
+        # Connect to the OneDrive site with retry logic
+        Invoke-PnPWithRetry -ScriptBlock {
+            Connect-PnPOnline -Url $personalSite.Url -ClientId $appID -Thumbprint $thumbprint -Tenant $tenant -ErrorAction Stop
+        } -Operation "Connect to site $($personalSite.Url)"
 
-        # get the rootweb + RoleAssignments
-        $web = Get-PnPWeb -Includes RoleAssignments
+        # Get the rootweb + RoleAssignments with retry logic
+        $web = Invoke-PnPWithRetry -ScriptBlock {
+            Get-PnPWeb -Includes RoleAssignments
+        } -Operation "Get web for site $($personalSite.Url)"
 
-        # enumerate RoleAssignments
-        foreach ( $roleAssignment in $web.RoleAssignments ) {
-            # pull principal LoginName
-            $null = Get-PnPProperty -ClientObject $roleAssignment.Member -Property LoginName
+        # Enumerate RoleAssignments
+        foreach ($roleAssignment in $web.RoleAssignments) {
+            # Pull principal LoginName with retry logic
+            Invoke-PnPWithRetry -ScriptBlock {
+                Get-PnPProperty -ClientObject $roleAssignment.Member -Property LoginName |  Out-Null
+            } -Operation "Get member login name for site $($personalSite.Url)"
 
-            # enumerate principals
-            foreach ( $member in $roleAssignment.Member ) {
-                # check if principal is EEEU
-                if ( $member.LoginName -match "spo-grid-all-users" ) {
-                    # hydrate RoleDefinitionBindings (permissions)
-                    $null = Get-PnPProperty -ClientObject $roleAssignment -Property RoleDefinitionBindings
+            # Enumerate principals
+            foreach ($member in $roleAssignment.Member) {
+                # Check if principal is EEEU
+                if ($member.LoginName -match "spo-grid-all-users") {
+                    # Hydrate RoleDefinitionBindings (permissions) with retry logic
+                    Invoke-PnPWithRetry -ScriptBlock {
+                        Get-PnPProperty -ClientObject $roleAssignment -Property RoleDefinitionBindings | Out-Null
+                    } -Operation "Get role definition bindings for site $($personalSite.Url)"
 
-                    # filter out hidden permissions
-                    $roleDefinitionBindings = $roleAssignment.RoleDefinitionBindings | Where-Object -Property Hidden -eq $false
-                    if ( $roleDefinitionBindings ) {
-                        write-host "Found EEEU: $($member.LoginName) on $($personalSite.Url)" -ForegroundColor Red
+                    # Filter out hidden permissions and Limited Access
+                    $roleDefinitionBindings = $roleAssignment.RoleDefinitionBindings | Where-Object { 
+                        -not $_.Hidden -and $_.Name -ne "Limited Access" 
+                    }
+                    
+                    if ($roleDefinitionBindings) {
                         Write-Log "Found EEEU: $($member.LoginName) on $($personalSite.Url)" -level "WARNING"
                         
-                        # output object
-                        [PSCustomObject] @{
+                        # Create and add result object
+                        $result = [PSCustomObject] @{
                             SiteUrl                = $personalSite.Url
                             Owner                  = $personalSite.Owner
                             Claim                  = $member.LoginName
                             RoleDefinitionBindings = $roleDefinitionBindings.Name -join ","
                             LibraryName            = "RootWeb"
                         }
+                        $results += $result
                     }
                     else { 
                         continue 
                     }
                 }
-            
             }
         }
 
-        # Call the new function to check for EEEU at the default document library level
-        Test-EEEUDocumentLibrary -siteUrl $personalSite.Url
-
+        # Call the function to check for EEEU at the default document library level
+        $libraryResults = Test-EEEUDocumentLibrary -siteUrl $personalSite.Url -personalSite $personalSite
+        if ($libraryResults) {
+            $results += $libraryResults
+        }
     }
     catch {
-        Write-Host "Error processing site: $($_)" -ForegroundColor Red
+        Write-Log "Error processing site $($personalSite.Url): $($_)" -level "ERROR"
     }
 }
 
-$results | Export-Csv -Path "$env:TEMP\OneDrive_EEEU_Root_Library_$startime.csv" -NoTypeInformation
+# Export results to CSV
+$csvPath = "$env:TEMP\OneDrive_EEEU_Root_Library_$startime.csv"
+$results | Export-Csv -Path $csvPath -NoTypeInformation
+Write-Log "Scan completed. Processed $processedCount sites. Results exported to: $csvPath" -level "INFO"
+Write-Log "Log file saved to: $logFilePath" -level "INFO"
