@@ -3,6 +3,8 @@
 Scans OneDrive sites for Everyone Except External Users (EEEU) permissions at root and document library level.
 
 .DESCRIPTION
+This script helps you prepare for: "MC1013464 -(Updated) We will remove the EEEU sharing permission from root web and default document library in OneDrive’s."
+
 This script connects to SharePoint Online and scans all OneDrive sites for permissions granted to 
 "Everyone Except External Users" (identified by the claim "spo-grid-all-users"). The script checks 
 both at the root site level and the default document library level.
