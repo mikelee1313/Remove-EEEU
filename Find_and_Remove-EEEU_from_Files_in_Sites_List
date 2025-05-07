@@ -23,7 +23,7 @@
     The path to a text file containing SharePoint site URLs to process.
 
 .NOTES
-    File Name      : Remove-EEEU_from_Files_in_Sites_List.ps1
+    File Name      : Find_and_Remove-EEEU_from_Files_in_Sites_List.ps1
     Author         : Mike Lee
     Date           : 3/26/25
 
