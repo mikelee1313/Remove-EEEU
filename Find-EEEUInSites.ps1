@@ -188,7 +188,7 @@ function Find-EEEUinFiles {
                     ItemURL  = $file.FieldValues.FileRef
                     RoleNames = ($roles -join ", ")
                 }
-                Write-Host "Located EEEU in file: $($file.FieldValues.FileLeafRef) on $SiteURL" -ForegroundColor Green
+                Write-Host "Located EEEU in file: $($file.FieldValues.FileLeafRef) on $SiteURL" -ForegroundColor Red
                 Write-Log "Located EEEU in file: $($file.FieldValues.FileLeafRef) on $SiteURL"
             }
         }
