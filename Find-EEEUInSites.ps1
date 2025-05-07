@@ -21,7 +21,7 @@
 .NOTES
     File Name      : Find-EEEUInSites.ps1
     Author         : Mike Lee
-    Date Created   : 3/31/2025
+    Date Created   : 5/7/2025
 
     The script uses app-only authentication with a certificate thumbprint. Make sure the app has
     proper permissions in your tenant (Sites.FullControl.All is recommended).
@@ -50,6 +50,7 @@ $thumbprint = "5EAD7303A5C7E27DB4245878AD554642940BA082"
 $tenant = "9cfc42cb-51da-4055-87e9-b20a170b6ba3"
 
 # Script Parameters
+Add-Type -AssemblyName System.Web
 $LoginName = "c:0-.f|rolemanager|spo-grid-all-users/$tenant"
 $startime = Get-Date -Format "yyyyMMdd_HHmmss"
 $logFilePath = "$env:TEMP\Find_EEEU_In_Sites_$startime.txt"
@@ -69,6 +70,84 @@ function Write-Log {
     Add-Content -Path $logFilePath -Value $logMessage
 }
 
+# Handle SharePoint Online throttling with exponential backoff
+function Invoke-WithRetry {
+    param (
+        [ScriptBlock]$ScriptBlock,
+        [int]$MaxRetries = 5,
+        [int]$InitialDelaySeconds = 5
+    )
+    
+    $retryCount = 0
+    $delay = $InitialDelaySeconds
+    $success = $false
+    $result = $null
+    
+    while (-not $success -and $retryCount -lt $MaxRetries) {
+        try {
+            $result = & $ScriptBlock
+            $success = $true
+        }
+        catch {
+            $exception = $_.Exception
+            
+            # Check if this is a throttling error (look for specific status codes or messages)
+            $isThrottlingError = $false
+            $retryAfterSeconds = $delay
+            
+            if ($exception.Response -ne $null) {
+                # Check for Retry-After header
+                $retryAfterHeader = $exception.Response.Headers['Retry-After']
+                if ($retryAfterHeader) {
+                    $isThrottlingError = $true
+                    $retryAfterSeconds = [int]$retryAfterHeader
+                    Write-Log "Received Retry-After header: $retryAfterSeconds seconds" "WARNING"
+                }
+                
+                # Check for 429 (Too Many Requests) or 503 (Service Unavailable)
+                $statusCode = [int]$exception.Response.StatusCode
+                if ($statusCode -eq 429 -or $statusCode -eq 503) {
+                    $isThrottlingError = $true
+                    Write-Log "Detected throttling response (Status code: $statusCode)" "WARNING"
+                }
+            }
+            
+            # Also check for specific throttling error messages
+            if ($exception.Message -match "throttl" -or 
+                $exception.Message -match "too many requests" -or
+                $exception.Message -match "temporarily unavailable") {
+                $isThrottlingError = $true
+                Write-Log "Detected throttling error in message: $($exception.Message)" "WARNING"
+            }
+            
+            if ($isThrottlingError) {
+                $retryCount++
+                if ($retryCount -lt $MaxRetries) {
+                    Write-Log "Throttling detected. Retry attempt $retryCount of $MaxRetries. Waiting $retryAfterSeconds seconds..." "WARNING"
+                    Write-Host "Throttling detected. Retry attempt $retryCount of $MaxRetries. Waiting $retryAfterSeconds seconds..." -ForegroundColor Yellow
+                    Start-Sleep -Seconds $retryAfterSeconds
+                    
+                    # Implement exponential backoff if no Retry-After header was provided
+                    if ($retryAfterSeconds -eq $delay) {
+                        $delay = $delay * 2 # Exponential backoff
+                    }
+                }
+                else {
+                    Write-Log "Maximum retry attempts reached. Giving up on operation." "ERROR"
+                    throw $_
+                }
+            }
+            else {
+                # Not a throttling error, rethrow
+                Write-Log "General Error occurred During retrieval : $($_.Exception.Message)" "WARNING"
+                throw $_
+            }
+        }
+    }
+    
+    return $result
+}
+
 # Read site URLs from input file
 function Read-SiteURLs {
     param (
@@ -84,7 +163,9 @@ function Connect-SharePoint {
         [string]$siteURL
     )
     try {
-        Connect-PnPOnline -Url $siteURL -ClientId $appID -Thumbprint $thumbprint -Tenant $tenant
+        Invoke-WithRetry -ScriptBlock {
+            Connect-PnPOnline -Url $siteURL -ClientId $appID -Thumbprint $thumbprint -Tenant $tenant
+        }
         Write-Log "Connected to SharePoint Online at $siteURL"
         return $true # Connection successful
     }
@@ -127,10 +208,14 @@ function Get-AllItemsInFolderAbs {
         $allItems = @()
         if ($folderUrl) {
             # Check if folderUrl is not empty
-            $items = Get-PnPListItem -List $folderUrl -PageSize 500
+            $items = Invoke-WithRetry -ScriptBlock {
+                Get-PnPListItem -List $folderUrl -PageSize 500
+            }
             $allItems += $items | Where-Object { $_["FileLeafRef"] -like "*.*" }
 
-            $subFolders = Get-PnPFolderItem -FolderSiteRelativeUrl $folderUrl -ItemType Folder
+            $subFolders = Invoke-WithRetry -ScriptBlock {
+                Get-PnPFolderItem -FolderSiteRelativeUrl $folderUrl -ItemType Folder
+            }
             foreach ($folder in $subFolders) {
                 if ($folder.Name -notin $ignoreFolders) {
                     $allItems += Get-AllItemsInFolderAbs -siteURL $siteURL -folderUrl $folder.ServerRelativeUrl
@@ -143,7 +228,7 @@ function Get-AllItemsInFolderAbs {
         return $allItems
     }
     catch {
-        #Write-Log "Failed to retrieve items from folder $folderUrl : $_" "ERROR"
+        Write-Log "Failed to retrieve items from folder $folderUrl : $_" "ERROR"
         return @()
     }
 }
@@ -165,15 +250,63 @@ function Find-EEEUinFiles {
             }
         }
        
-        $file = Get-PnPFile -Url $fileUrl -AsListItem
+        try {
+            # Try direct approach first with throttling protection
+            $file = Invoke-WithRetry -ScriptBlock {
+                Get-PnPFile -Url $fileUrl -AsListItem -ErrorAction Stop
+            }
+        }
+        catch {
+            # If direct approach fails, try with URL encoding
+            try {
+                Write-Log "Initial file access failed, trying with URL encoding: $fileUrl" "WARNING"
+                
+                # Parse the URL into parts
+                $urlParts = $fileUrl.Split('/')
+                
+                # Encode each part of the URL separately (except the protocol and domain)
+                $encodedParts = @()
+                $skipEncoding = $true
+                foreach ($part in $urlParts) {
+                    # Skip encoding for the protocol and domain parts
+                    if ($skipEncoding -and ($part -eq "https:" -or $part -eq "" -or $part -like "*.sharepoint.com")) {
+                        $encodedParts += $part
+                    }
+                    else {
+                        $skipEncoding = $false
+                        $encodedParts += [System.Web.HttpUtility]::UrlEncode($part)
+                    }
+                }
+                
+                # Rebuild the URL with encoded parts
+                $encodedFileUrl = $encodedParts -join '/'
+                
+                # Try with encoded URL and throttling protection
+                $file = Invoke-WithRetry -ScriptBlock {
+                    Get-PnPFile -Url $encodedFileUrl -AsListItem
+                }
+                Write-Log "Successfully accessed file with encoded URL: $encodedFileUrl"
+            }
+            catch {
+                Write-Log "Failed to access file even with URL encoding: $fileUrl - $_" "ERROR"
+                return
+            }
+        }
 
-        $Permissions = Get-PnPProperty -ClientObject $file -Property RoleAssignments
+        # Get permissions with throttling protection
+        $Permissions = Invoke-WithRetry -ScriptBlock {
+            Get-PnPProperty -ClientObject $file -Property RoleAssignments
+        }
 
         if ($Permissions) {
             $roles = @()
             foreach ($RoleAssignment in $Permissions) {
-                Get-PnPProperty -ClientObject $RoleAssignment -Property RoleDefinitionBindings, Member
-                #Write-Log "Checking  File: $($fileUrl) role assignment: $($RoleAssignment.Member.LoginName), Role: $($RoleAssignment.RoleDefinitionBindings.name)"
+                # Get role assignments with throttling protection
+                Invoke-WithRetry -ScriptBlock {
+                    Get-PnPProperty -ClientObject $RoleAssignment -Property RoleDefinitionBindings, Member
+                }
+                
+                #Write-Log "Checking File: $($fileUrl) role assignment: $($RoleAssignment.Member.LoginName), Role: $($RoleAssignment.RoleDefinitionBindings.name)"
 
                 if ($RoleAssignment.Member.LoginName -eq $LoginName -and $RoleAssignment.RoleDefinitionBindings.name -ne 'Limited Access') {
                     $rolelevel = $RoleAssignment.RoleDefinitionBindings
@@ -183,10 +316,44 @@ function Find-EEEUinFiles {
                 }
             }
             if ($roles.Count -gt 0) {
+                # Get file owner information
+                $owner = "Unknown"
+                $ownerEmail = "Unknown"
+                $createdDate = "Unknown"
+                
+                try {
+                    # Try to get file author/owner information using PnP methods
+                    if ($file.FieldValues.ContainsKey("Author")) {
+                        $authorId = $file.FieldValues.Author.LookupId
+                        
+                        if ($authorId) {
+                            $ownerInfo = Invoke-WithRetry -ScriptBlock {
+                                Get-PnPUser -Identity $authorId
+                            }
+                            
+                            if ($ownerInfo) {
+                                $owner = $ownerInfo.Title
+                                $ownerEmail = $ownerInfo.Email
+                            }
+                        }
+                    }
+                    
+                    # Get created date
+                    if ($file.FieldValues.ContainsKey("Created")) {
+                        $createdDate = $file.FieldValues.Created.ToString("yyyy-MM-dd HH:mm:ss")
+                    }
+                }
+                catch {
+                    Write-Log "Error retrieving file owner information: $_" "WARNING"
+                }
+
                 $global:EEEUOccurrences += [PSCustomObject]@{
-                    Url   = $SiteURL
-                    ItemURL  = $file.FieldValues.FileRef
-                    RoleNames = ($roles -join ", ")
+                    Url         = $SiteURL
+                    ItemURL     = $file.FieldValues.FileRef
+                    RoleNames   = ($roles -join ", ")
+                    OwnerName   = $owner
+                    OwnerEmail  = $ownerEmail
+                    CreatedDate = $createdDate
                 }
                 Write-Host "Located EEEU in file: $($file.FieldValues.FileLeafRef) on $SiteURL" -ForegroundColor Red
                 Write-Log "Located EEEU in file: $($file.FieldValues.FileLeafRef) on $SiteURL"
@@ -198,14 +365,32 @@ function Find-EEEUinFiles {
     }
 }
 
-
-# Write EEEU occurrences to CSV file (remove duplicates)
+# Modify the Write-EEEUOccurrencesToCSV function to include owner information
 function Write-EEEUOccurrencesToCSV {
     param (
-        [string]$filePath
+        [string]$filePath,
+        [switch]$Append = $false,
+        [array]$OccurrencesData = $global:EEEUOccurrences
     )
     try {
-        $global:EEEUOccurrences | Group-Object SiteURL, FileName, RoleNames | ForEach-Object { $_.Group } | Export-Csv -Path $filePath -NoTypeInformation
+        # Create the file with headers if it doesn't exist or if we're not appending
+        if (-not (Test-Path $filePath) -or -not $Append) {
+            # Create empty file with headers - adding new columns for owner information
+            "Url,ItemURL,RoleNames,OwnerName,OwnerEmail,CreatedDate" | Out-File -FilePath $filePath
+        }
+
+        # Group by URL, Item URL and Roles to remove duplicates
+        $uniqueOccurrences = $OccurrencesData | 
+        Group-Object -Property Url, ItemURL, RoleNames | 
+        ForEach-Object { $_.Group[0] }
+        
+        # Append data to CSV
+        foreach ($occurrence in $uniqueOccurrences) {
+            # Manual CSV creation to handle special characters correctly
+            $csvLine = "`"$($occurrence.Url)`",`"$($occurrence.ItemURL)`",`"$($occurrence.RoleNames)`",`"$($occurrence.OwnerName)`",`"$($occurrence.OwnerEmail)`",`"$($occurrence.CreatedDate)`""
+            Add-Content -Path $filePath -Value $csvLine
+        }
+        
         Write-Log "EEEU occurrences have been written to $filePath"
     }
     catch {
@@ -217,25 +402,42 @@ function Write-EEEUOccurrencesToCSV {
 $global:EEEUOccurrences = @()
 $siteURLs = Read-SiteURLs -filePath $inputFilePath
 
+# Create an empty output file with headers
+Write-EEEUOccurrencesToCSV -filePath $outputFilePath
+
 foreach ($siteURL in $siteURLs) {
     Write-Host "Looping through all files in $siteURL to locate EEEU in all files" -ForegroundColor Green
-
+    # Clear the global collection for this site
+    $global:EEEUOccurrences = @()
+    
     if (Connect-SharePoint -siteURL $siteURL) {
         # Check connection success
-        #Get all lists and libraries
-        #$lists = Get-PnPList | Where-Object { $_.BaseTemplate -eq "DocumentLibrary" -or $_.BaseTemplate -eq "GenericList" } | Select-Object -ExpandProperty RootFolder.ServerRelativeUrl
-        $lists = Get-PnPList | Select-Object Title, id, Url | Where-Object { $_.Title -notin $ignoreFolders } | Select-Object -ExpandProperty Title
+        # Get all lists and libraries with throttling protection
+        $lists = Invoke-WithRetry -ScriptBlock {
+            Get-PnPList | Select-Object Title, id, Url | Where-Object { $_.Title -notin $ignoreFolders } | Select-Object -ExpandProperty Title
+        }
         foreach ($list in $lists) {
             $allItems = Get-AllItemsInFolderAbs -siteURL $siteURL -folderUrl $list
             foreach ($item in $allItems) {
                 Find-EEEUinFiles -item $item
             }
         }
+        
+        # Write the results for this site collection to the CSV
+        if ($global:EEEUOccurrences.Count -gt 0) {
+            Write-Host "Writing $($global:EEEUOccurrences.Count) EEEU occurrences from $siteURL to CSV..." -ForegroundColor Cyan
+            Write-EEEUOccurrencesToCSV -filePath $outputFilePath -Append -OccurrencesData $global:EEEUOccurrences
+        }
+        else {
+            Write-Host "No EEEU occurrences found in $siteURL" -ForegroundColor Green
+            Write-Log "No EEEU occurrences found in $siteURL"
+        }
     }
-    Write-Host "Operations completed successfully"
-    Write-Log "Operations completed successfully"
+    
+    Write-Host "Completed processing for $siteURL" -ForegroundColor Green
+    Write-Log "Completed processing for $siteURL"
 }
 
-Write-EEEUOccurrencesToCSV -filePath $outputFilePath
-Write-Host "EEEU occurrences have been located and reported in $outputFilePath" -ForegroundColor Green
-Write-Log "EEEU occurrences have been located and reported in $outputFilePath"
+# Final message, don't need another CSV write since we've been writing after each site
+Write-Host "EEEU occurrences scan completed. Results available in $outputFilePath" -ForegroundColor Green
+Write-Log "EEEU occurrences scan completed. Results available in $outputFilePath"
