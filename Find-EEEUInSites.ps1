@@ -21,7 +21,7 @@
 .NOTES
     File Name      : Find-EEEUInSites.ps1
     Author         : Mike Lee
-    Date Created   : 5/7/2025
+    Date Created   : 5/12/2025
 
     The script uses app-only authentication with a certificate thumbprint. Make sure the app has
     proper permissions in your tenant (Sites.FullControl.All is recommended).
@@ -51,7 +51,7 @@ $tenant = "9cfc42cb-51da-4055-87e9-b20a170b6ba3"
 
 # Script Parameters
 Add-Type -AssemblyName System.Web
-$LoginName = "c:0-.f|rolemanager|spo-grid-all-users/$tenant"
+$EEEU = '*spo-grid-all-users*'
 $startime = Get-Date -Format "yyyyMMdd_HHmmss"
 $logFilePath = "$env:TEMP\Find_EEEU_In_Sites_$startime.txt"
 $outputFilePath = "$env:TEMP\Find_EEEU_In_Sites_$startime.csv"
@@ -308,7 +308,7 @@ function Find-EEEUinFiles {
                 
                 #Write-Log "Checking File: $($fileUrl) role assignment: $($RoleAssignment.Member.LoginName), Role: $($RoleAssignment.RoleDefinitionBindings.name)"
 
-                if ($RoleAssignment.Member.LoginName -eq $LoginName -and $RoleAssignment.RoleDefinitionBindings.name -ne 'Limited Access') {
+                if ($RoleAssignment.Member.LoginName -like $EEEU -and $RoleAssignment.RoleDefinitionBindings.name -ne 'Limited Access') {
                     $rolelevel = $RoleAssignment.RoleDefinitionBindings
                     foreach ($role in $rolelevel) {
                         $roles += $role.Name
