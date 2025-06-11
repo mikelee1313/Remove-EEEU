@@ -50,9 +50,10 @@ $thumbprint = "B696FDCFE1453F3FBC6031F54DE988DA0ED905A9"        # This is certif
 $tenant = "85612ccb-4c28-4a34-88df-a538cc139a51"                # This is your Tenant ID
 
 # Script Parameters
-$LoginName = "c:0-.f|rolemanager|spo-grid-all-users/$tenant"
-$startime = Get-Date -Format "yyyyMMdd_HHmmss"
-$logFilePath = "$env:TEMP\Remove_EEEU_From_File_List_$startime.txt"
+$LoginName = "c:0-.f|rolemanager|spo-grid-all-users/$tenant"    # User principal name for "Everyone except external users"
+$csvFilePath = "C:\temp\Find_EEEU_In_Sites_20250611_102356.csv" # Path to the CSV file containing file list
+$startime = Get-Date -Format "yyyyMMdd_HHmmss"                  # Timestamp for log file
+$logFilePath = "$env:TEMP\Remove_EEEU_From_File_List_$startime.txt" # Path to the log file
 
 # Setup logging
 function Write-Log {
@@ -126,7 +127,6 @@ function Remove-EEEUfromFile {
 }
 
 # Read the CSV file and process each row
-$csvFilePath = "C:\temp\Find_EEEU_In_Sites_20250611_102356.csv"
 $csvData = Import-Csv -Path $csvFilePath
 foreach ($row in $csvData) {
     #The headings can be different in the CSV file, so we need to use the correct column names
