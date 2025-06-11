@@ -13,7 +13,7 @@
 .NOTES
     File Name      : Remove-EEEUFromFileList.ps1
     Author         : Mike Lee
-    Date           : 3/31/25
+    Date           : 6/11/25
 
 .DISCLAIMER
     Disclaimer: The sample scripts are provided AS IS without warranty of any kind. 
@@ -45,9 +45,9 @@
     5. Logs all operations to a log file
 #>
 # Tenant Level Information
-$appID = "1e488dc4-1977-48ef-8d4d-9856f4e04536"
-$thumbprint = "5EAD7303A5C7E27DB4245878AD554642940BA082"
-$tenant = "9cfc42cb-51da-4055-87e9-b20a170b6ba3"
+$appID = "5baa1427-1e90-4501-831d-a8e67465f0d9"                 # This is your Entra App ID
+$thumbprint = "B696FDCFE1453F3FBC6031F54DE988DA0ED905A9"        # This is certificate thumbprint
+$tenant = "85612ccb-4c28-4a34-88df-a538cc139a51"                # This is your Tenant ID
 
 # Script Parameters
 $LoginName = "c:0-.f|rolemanager|spo-grid-all-users/$tenant"
@@ -126,26 +126,38 @@ function Remove-EEEUfromFile {
 }
 
 # Read the CSV file and process each row
-$csvFilePath = "C:\Users\michlee\AppData\Local\Temp\Find_EEEU_In_Sites_20250331_183900.csv"
+$csvFilePath = "C:\temp\Find_EEEU_In_Sites_20250611_102356.csv"
 $csvData = Import-Csv -Path $csvFilePath
 foreach ($row in $csvData) {
-
-    Write-Host "Working on $FilePath in $siteURL to remove EEEU from all files" -ForegroundColor Green
-
     #The headings can be different in the CSV file, so we need to use the correct column names
     $SiteURL = $row.URL
     $FilePath = $row.ItemURL
 
-    Connect-ToSharePoint -SiteURL $SiteURL
-    
-    $file = Get-File -FilePath $FilePath
-    # Expand the ParentList property if needed
-    if ($file) {
-        Get-PnPProperty -ClientObject $file -Property ParentList
-        # Write-Log "Expanded ParentList property for file: $($file.FieldValues.FileLeafRef)"
+    Write-Host "Working on $FilePath in $siteURL to remove EEEU" -ForegroundColor Green
+    Write-Log "Attempting to process file: $FilePath in site: $SiteURL"
+
+    try {
+        Connect-ToSharePoint -SiteURL $SiteURL
+        
+        $file = Get-File -FilePath $FilePath Out-Null
+        
+        if ($file) {
+            # Expand the ParentList property if needed
+            Get-PnPProperty -ClientObject $file -Property ParentList | Out-Null
+            # Write-Log "Expanded ParentList property for file: $($file.FieldValues.FileLeafRef)"
+            Remove-EEEUfromFile -file $file | Out-Null
+        }
+        else {
+            Write-Log "File object is null for $FilePath. Skipping further processing for this item." "WARNING"
+            Write-Host "File object is null for $FilePath. Skipping." -ForegroundColor Red
+        }
     }
-    
-    Remove-EEEUfromFile -file $file
+    catch {
+        Write-Log "An error occurred while processing $FilePath in $SiteURL : $_" "ERROR"
+        Write-Host "Error processing $FilePath : $_" -ForegroundColor Red
+        # Continue to the next item in the CSV
+        continue
+    }
 }
 
 Write-Log "Operations completed successfully"
