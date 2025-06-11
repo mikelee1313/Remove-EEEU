@@ -114,7 +114,7 @@ function Remove-EEEUfromFile {
                     Write-Host "Retrieved file: $($file.FieldValues.FileLeafRef) on $SiteURL" -ForegroundColor Yellow
                     Write-Log "Retrieved file:  $($file.FieldValues.FileLeafRef) on $SiteURL"
                     Set-PnPListItemPermission -List $file.ParentList.Title -Identity $file.Id -RemoveRole $role.Name -User $roleuser
-                    Write-Host "Removed Role: $($role.Name) from User: $($roleuser) in File: $($file.FieldValues.FileLeafRef)" -ForegroundColor Yellow
+                    Write-Host "Removed Role: $($role.Name) from User: $($roleuser) in File: $($file.FieldValues.FileLeafRef)" -ForegroundColor cyan
                     Write-Log "Removed Role: $($role.Name) from User: $($roleuser) in File: $($file.FieldValues.FileLeafRef)"
                 }
             }
