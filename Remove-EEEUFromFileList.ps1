@@ -52,7 +52,7 @@ $tenant = "85612ccb-4c28-4a34-88df-a538cc139a51"                # This is your T
 
 # Script Parameters
 $LoginName = "c:0-.f|rolemanager|spo-grid-all-users/$tenant"    # User principal name for "Everyone except external users"
-$csvFilePath = "C:\Users\michlee\AppData\Local\Temp\Find_EEEU_In_Sites_20250625_151123.csv" # Path to the CSV file containing file list
+$csvFilePath = "C:\Temp\Find_EEEU_In_Sites_20250625_152020.csv" # Path to the CSV file containing file list
 $startime = Get-Date -Format "yyyyMMdd_HHmmss"                  # Timestamp for log file
 $logFilePath = "$env:TEMP\Remove_EEEU_From_File_List_$startime.txt" # Path to the log file
 
@@ -288,7 +288,7 @@ function Remove-EEEUfromWeb {
 }
 
 # Process each object based on its type
-function Process-SharePointObject {
+function Invoke-SharePointObjectProcessing {
     param (
         [string]$SiteURL,
         [string]$ObjectPath,
@@ -436,7 +436,7 @@ foreach ($row in $csvData) {
     Write-Host "Working on $ObjectType : $ObjectPath in $siteURL to remove EEEU" -ForegroundColor Green
     Write-Log "Attempting to process $ObjectType : $ObjectPath in site: $SiteURL"
 
-    Process-SharePointObject -SiteURL $SiteURL -ObjectPath $ObjectPath -ObjectType $ObjectType
+    Invoke-SharePointObjectProcessing -SiteURL $SiteURL -ObjectPath $ObjectPath -ObjectType $ObjectType
 }
 
 Write-Log "Operations completed successfully"
