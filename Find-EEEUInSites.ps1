@@ -57,8 +57,7 @@ $logFilePath = "$env:TEMP\Find_EEEU_In_Sites_$startime.txt"
 $outputFilePath = "$env:TEMP\Find_EEEU_In_Sites_$startime.csv"
 
 # Path and file names
-#$inputFilePath = "C:\temp\oversharedurls.txt" # Path to the input file containing site URLs
-$inputFilePath = "C:\temp\commsite1.txt" # Path to the input file containing site URLs
+$inputFilePath = "C:\temp\oversharedurls.txt" # Path to the input file containing site URLs
 
 # Permission levels to check
 $permissionLevels = @("Web", "List", "Folder", "File")
