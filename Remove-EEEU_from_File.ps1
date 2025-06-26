@@ -45,7 +45,7 @@
     to use the sample scripts or documentation, even if Microsoft has been advised of the possibility of such damages.
 
 .EXAMPLE
-    ./Remove-EEEU_from_File.ps1
+    ./Remove-EEEU_from_SingleFile.ps1
     Executes the script with predefined parameters to remove permissions from the specified file.
 
 #>
