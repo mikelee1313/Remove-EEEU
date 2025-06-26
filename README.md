@@ -7,7 +7,8 @@ Scripts to handle EEEU "Everyone Except for External Users" from the file level 
 
 Output Example:
 
-![image](https://github.com/user-attachments/assets/03c6c701-6682-4198-af46-04d84977822c)
+![image](https://github.com/user-attachments/assets/9f7cf1b4-0ce1-4ae2-9a47-9de96e8d61a7)
+
 
 Note: This output CSV file can be directly used with the **Remove-EEEUFromFileList.ps1** to mitigate oversharing using the input list
 
