@@ -1,4 +1,4 @@
-# Remove-EEEU
+# Handle EEEU in SharePoint Online
 Scripts to handle EEEU "Everyone Except for External Users" from the file level in SharePoint Online
 
 
