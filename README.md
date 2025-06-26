@@ -23,6 +23,7 @@ Example input from Find-EEEUInSites.ps1
 **Find-RemoveEEEUfromSites.ps1** This script combines the functionality of "Find-EEEUInSites.ps1" and "Remove-EEEUFromFileList.ps1". It first locates all EEEU occurrences using the same method as Find-EEEUInSites.ps1, and then removes the EEEU role from each object as it is found.
 
 
+------------------------------------------------------------
 
 **Disclaimer:** The sample scripts are provided AS IS without warranty of any kind. 
 Microsoft further disclaims all implied warranties including, without limitation, 
