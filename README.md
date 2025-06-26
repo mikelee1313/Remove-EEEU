@@ -20,7 +20,8 @@ Example input from Find-EEEUInSites.ps1
 ![image](https://github.com/user-attachments/assets/61962bfa-1d1c-4fb8-8994-a20ca70ce0f9)
 
 
-**Find-RemoveEEEUfromSites.ps1** This script combines the functionality of "Find-EEEUInSites.ps1" and "Remove-EEEUFromFileList.ps1". It first locates all EEEU occurrences using the same method as Find-EEEUInSites.ps1, and then removes the EEEU role from each object as it is found.
+**Find-RemoveEEEUfromSites.ps1** This script combines the functionality of "Find-EEEUInSites.ps1" and "Remove-EEEUFromFileList.ps1". 
+It first locates all EEEU occurrences using the same method as Find-EEEUInSites.ps1, and then removes the EEEU role from each object as it is found.
 
 
 ------------------------------------------------------------
