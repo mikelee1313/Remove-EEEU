@@ -1,6 +1,7 @@
 # Handle EEEU in SharePoint Online
 Scripts to handle EEEU "Everyone Except for External Users" from the file level in SharePoint Online
 
+------------------------------------------------------------
 
 **Find-EEEUInSites.ps1** Finds all instances files shared with (EEEU) permissions in SharePoint Online and OneDrive sites.
 
@@ -12,6 +13,7 @@ Note: This output CSV file can be directly used with the **Remove-EEEUFromFileLi
 
 ![image](https://github.com/user-attachments/assets/eb0a6d81-624c-4f3a-9b64-c718e2503b04)
 
+------------------------------------------------------------
 
 **Remove-EEEUFromFileList.ps1** = Removes EEEU from an input list of files across site. The file list should contain the URL and File Path.
 
@@ -19,6 +21,7 @@ Example input from Find-EEEUInSites.ps1
 
 ![image](https://github.com/user-attachments/assets/61962bfa-1d1c-4fb8-8994-a20ca70ce0f9)
 
+------------------------------------------------------------
 
 **Find-RemoveEEEUfromSites.ps1** This script combines the functionality of "Find-EEEUInSites.ps1" and "Remove-EEEUFromFileList.ps1". 
 It first locates all EEEU occurrences using the same method as Find-EEEUInSites.ps1, and then removes the EEEU role from each object as it is found.
