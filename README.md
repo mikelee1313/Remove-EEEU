@@ -24,6 +24,9 @@ Example input from Find-EEEUInSites.ps1
 It first locates all EEEU occurrences using the same method as Find-EEEUInSites.ps1, and then removes the EEEU role from each object as it is found.
 
 
+![image](https://github.com/user-attachments/assets/b81c8d42-12a7-4652-b9e4-a66a9794e47e)
+
+
 ------------------------------------------------------------
 
 **Disclaimer:** The sample scripts are provided AS IS without warranty of any kind. 
