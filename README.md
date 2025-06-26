@@ -22,26 +22,6 @@ Example input from Find-EEEUInSites.ps1
 
 
 
-**Add-EEEU.ps1** = Script to add EEEU to files for testing
-
-**Add-EEEUtoOneDrive-RootandLibrary.ps1** = Add EEEU to a OneDrive Root Site and Document LIbrary for Testing **MC1013464**
-
-**Find_EEEU_Root_Library.ps1** = This script will scan all OneDrive sites for "Everyone Except External Users" (EEEU) permissions at root and document library level.
-This script helps you prepare for **MC1013464** -(Updated) We will remove the EEEU sharing permission from root web and default document library in OneDrive’s.
-
-Example Output:
-
-![image](https://github.com/user-attachments/assets/f2530de2-0194-4857-9088-156b13806646)
-
-
-![image](https://github.com/user-attachments/assets/18ca2dd1-4108-4d94-beae-cbf7d006d8d8)
-
-
-**Remove-EEEU_from_File.ps1** = Script to remove EEEU from a single file
-
-**Find_and_Remove_EEEU_From_Files_in_OneDrive.ps1** =  Removes ("EEEU") from all files including subfolders in a SharePoint Online document library.
-
-**Remove-EEEU_from_Files_in_Sites_List.ps1**  = This script will take a list of URLs and remove EEEU from all files from all listed sites from within the input file.
 
 Example of input file:
 
