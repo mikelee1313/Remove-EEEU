@@ -21,7 +21,7 @@
 .NOTES
     File Name      : Find-EEEUInSites.ps1
     Author         : Mike Lee
-    Date Created   : 6/26/2025
+    Date Created   : 6/25/2025
 
     The script uses app-only authentication with a certificate thumbprint. Make sure the app has
     proper permissions in your tenant (Sites.FullControl.All is recommended).
@@ -47,7 +47,7 @@ to use the sample scripts or documentation, even if Microsoft has been advised o
 # Tenant Level Information
 $appID = "5baa1427-1e90-4501-831d-a8e67465f0d9"                 # This is your Entra App ID
 $thumbprint = "B696FDCFE1453F3FBC6031F54DE988DA0ED905A9"        # This is certificate thumbprint
-$tenant = "85612ccb-4c28-4a34-88df-a538cc139a51"                # This is your Tenant ID20a170b6ba3"
+$tenant = "85612ccb-4c28-4a34-88df-a538cc139a51"                # This is your Tenant ID
 
 # Script Parameters
 Add-Type -AssemblyName System.Web
@@ -55,9 +55,35 @@ $EEEU = '*spo-grid-all-users*'
 $startime = Get-Date -Format "yyyyMMdd_HHmmss"
 $logFilePath = "$env:TEMP\Find_EEEU_In_Sites_$startime.txt"
 $outputFilePath = "$env:TEMP\Find_EEEU_In_Sites_$startime.csv"
+$debugLogging = $false  # Set to $true for verbose logging, $false for essential logging only
 
 # Path and file names
 $inputFilePath = "C:\temp\oversharedurls.txt" # Path to the input file containing site URLs
+
+# List of folders to ignore
+$ignoreFolders = @(
+    "VivaEngage",    #Viva Engage folder for Storyline attachments EEEU is read by default
+    "Style Library",
+    "_catalogs",
+    "_cts",
+    "_private",
+    "_vti_pvt",
+    "Reference 778a30bb4f074ae3bec315889ee34b88",
+    "Sharing Links",
+    "Social",
+    "FavoriteLists-e0157a47-72e4-43c1-bfd0-ed9f7040e894",
+    "User Information List",
+    "Web Template Extensions",
+    "SmartCache-8189C6B3-4081-4F62-9015-35FDB7FDF042",
+    "SharePointHomeCacheList",
+    "RecentLists-56BAEAB4-E7AD-4E59-B92B-9290D871F5C3",
+    "PersonalCacheLibrary",
+    "microsoft.ListSync.Endpoints",
+    "Maintenance Log Library",
+    "DO_NOT_DELETE_ENTERPRISE_USER_CONTAINER_ENUM_LIST_ee0de9c4-6398-408f-ac09-f0401edfb0bf",
+    "appfiles",
+    "Reference, 778a30bb4f074ae3bec315889ee34b88"
+)
 
 # Permission levels to check
 $permissionLevels = @("Web", "List", "Folder", "File")
@@ -68,9 +94,22 @@ function Write-Log {
         [string]$message,
         [string]$level = "INFO"
     )
-    $timestamp = Get-Date -Format "yyyy-MM-dd HH:mm:ss"
-    $logMessage = "$timestamp - $level - $message"
-    Add-Content -Path $logFilePath -Value $logMessage
+    
+    # Only log essential messages when debug is false
+    $essentialLevels = @("ERROR", "WARNING")
+    $isEssential = $level -in $essentialLevels -or 
+    $message -like "*Located EEEU*" -or 
+    $message -like "*Connected to SharePoint*" -or 
+    $message -like "*Failed to connect*" -or
+    $message -like "*Processing site:*" -or
+    $message -like "*Completed processing*" -or
+    $message -like "*scan completed*"
+    
+    if ($debugLogging -or $isEssential) {
+        $timestamp = Get-Date -Format "yyyy-MM-dd HH:mm:ss"
+        $logMessage = "$timestamp - $level - $message"
+        Add-Content -Path $logFilePath -Value $logMessage
+    }
 }
 
 # Handle SharePoint Online throttling with exponential backoff
@@ -142,7 +181,15 @@ function Invoke-WithRetry {
             }
             else {
                 # Not a throttling error, rethrow
-                Write-Log "General Error occurred During retrieval : $($_.Exception.Message)" "WARNING"
+                # Check if it's an expected object reference error and log as DEBUG
+                if ($_.Exception.Message -like "*Object reference not set to an instance of an object*" -or 
+                    $_.Exception.Message -like "*ListItemAllFields*" -or
+                    $_.Exception.Message -like "*object is associated with property*") {
+                    Write-Log "Expected retrieval error (likely null object reference): $($_.Exception.Message)" "DEBUG"
+                }
+                else {
+                    Write-Log "General Error occurred During retrieval : $($_.Exception.Message)" "WARNING"
+                }
                 throw $_
             }
         }
@@ -177,30 +224,6 @@ function Connect-SharePoint {
         return $false # Connection failed
     }
 }
-
-# List of folders to ignore
-$ignoreFolders = @(
-    "VivaEngage",  # Viva Engage folder for Storyline attachments EEEU is read by default
-    "_catalogs",
-    "_cts",
-    "_private",
-    "_vti_pvt",
-    "Reference 778a30bb4f074ae3bec315889ee34b88",
-    "Sharing Links",
-    "Social",
-    "FavoriteLists-e0157a47-72e4-43c1-bfd0-ed9f7040e894",
-    "User Information List",
-    "Web Template Extensions",
-    "SmartCache-8189C6B3-4081-4F62-9015-35FDB7FDF042",
-    "SharePointHomeCacheList",
-    "RecentLists-56BAEAB4-E7AD-4E59-B92B-9290D871F5C3",
-    "PersonalCacheLibrary",
-    "microsoft.ListSync.Endpoints",
-    "Maintenance Log Library",
-    "DO_NOT_DELETE_ENTERPRISE_USER_CONTAINER_ENUM_LIST_ee0de9c4-6398-408f-ac09-f0401edfb0bf",
-    "appfiles",
-    "(Reference, 778a30bb4f074ae3bec315889ee34b88)"
-)
 
 # Get all items in a folder and subfolders (using absolute URLs)
 function Get-AllItemsInFolderAbs {
@@ -257,7 +280,7 @@ function Find-EEEUinWeb {
         }
         
         if (-not $hasUniquePermissions) {
-            Write-Log "Web does not have unique permissions. Skipping."
+            Write-Log "Web does not have unique permissions. Skipping." "DEBUG"
             Write-Host "Web does not have unique permissions. Skipping." -ForegroundColor Yellow
             return
         }
@@ -331,7 +354,7 @@ function Find-EEEUinLists {
             }
 
             if (-not $hasUniquePermissions) {
-                Write-Log "List '$($list.Title)' does not have unique permissions. Skipping."
+                Write-Log "List '$($list.Title)' does not have unique permissions. Skipping." "DEBUG"
                 continue
             }
 
@@ -415,7 +438,7 @@ function Find-EEEUinFolders {
             Get-PnPListItem -List $list -PageSize 500 | Where-Object { $_["FileLeafRef"] -ne $null -and $_["FSObjType"] -eq 1 }
         }
         
-        Write-Log "Found $($folderItems.Count) folders in list '$listTitle'"
+        Write-Log "Found $($folderItems.Count) folders in list '$listTitle'" "DEBUG"
         
         foreach ($folderItem in $folderItems) {
             $folderName = $folderItem["FileLeafRef"]
@@ -432,7 +455,7 @@ function Find-EEEUinFolders {
             }
             
             if (-not $hasUniquePermissions) {
-                Write-Log "Folder '$folderName' does not have unique permissions. Skipping."
+                Write-Log "Folder '$folderName' does not have unique permissions. Skipping." "DEBUG"
                 continue
             }
             
@@ -518,7 +541,7 @@ function Find-EEEUinFolders {
                 }
                 
                 if (-not $hasUniquePermissions) {
-                    Write-Log "Root folder of list '$listTitle' does not have unique permissions. Skipping."
+                    Write-Log "Root folder of list '$listTitle' does not have unique permissions. Skipping." "DEBUG"
                     return
                 }
                 
@@ -559,7 +582,15 @@ function Find-EEEUinFolders {
             }
         }
         catch {
-            Write-Log "Failed to process root folder permissions: $_" "WARNING"
+            # Check if it's the expected ListItemAllFields error
+            if ($_.Exception.Message -like "*Object reference not set to an instance of an object*" -or 
+                $_.Exception.Message -like "*ListItemAllFields*" -or
+                $_.Exception.Message -like "*object is associated with property*") {
+                Write-Log "Expected root folder error (likely null ListItemAllFields): $($_.Exception.Message)" "DEBUG"
+            }
+            else {
+                Write-Log "Failed to process root folder permissions: $_" "WARNING"
+            }
         }
     }
     catch {
@@ -618,7 +649,7 @@ function Find-EEEUinFiles {
                 $file = Invoke-WithRetry -ScriptBlock {
                     Get-PnPFile -Url $encodedFileUrl -AsListItem
                 }
-                Write-Log "Successfully accessed file with encoded URL: $encodedFileUrl"
+                Write-Log "Successfully accessed file with encoded URL: $encodedFileUrl" "DEBUG"
             }
             catch {
                 Write-Log "Failed to access file even with URL encoding: $fileUrl - $_" "ERROR"
@@ -632,7 +663,7 @@ function Find-EEEUinFiles {
         }
         
         if (-not $hasUniquePermissions) {
-            Write-Log "File '$($file.FieldValues.FileLeafRef)' does not have unique permissions. Skipping."
+            Write-Log "File '$($file.FieldValues.FileLeafRef)' does not have unique permissions. Skipping." "DEBUG"
             return
         }
         
@@ -733,7 +764,7 @@ function Write-EEEUOccurrencesToCSV {
             Add-Content -Path $filePath -Value $csvLine
         }
         
-        Write-Log "EEEU occurrences have been written to $filePath"
+        Write-Log "EEEU occurrences have been written to $filePath" "DEBUG"
     }
     catch {
         Write-Log "Failed to write EEEU occurrences to CSV file: $_" "ERROR"
@@ -828,11 +859,11 @@ function Process-SiteAndSubsites {
         
         if ($subsites -and $subsites.Count -gt 0) {
             Write-Host "Found $($subsites.Count) subsites to process" -ForegroundColor Yellow
-            Write-Log "Found $($subsites.Count) subsites to process"
+            Write-Log "Found $($subsites.Count) subsites to process" "DEBUG"
             
             foreach ($subsite in $subsites) {
                 Write-Host "Processing subsite: $($subsite.Url)" -ForegroundColor Yellow
-                Write-Log "Processing subsite: $($subsite.Url)"
+                Write-Log "Processing subsite: $($subsite.Url)" "DEBUG"
                 Process-SiteAndSubsites -siteURL $subsite.Url
             }
         }
