@@ -15,11 +15,12 @@ Note: This output CSV file can be directly used with the **Remove-EEEUFromFileLi
 
 ------------------------------------------------------------
 
-**Remove-EEEUFromFileList.ps1** = Removes EEEU from an input list of files across site. The file list should contain the URL and File Path.
+**Remove-EEEUFromFileList.ps1** = Removes EEEU from an input list of files across site. The file list should contain the URL, ItemURL and ItemType.
 
 Example input from Find-EEEUInSites.ps1
 
-![image](https://github.com/user-attachments/assets/61962bfa-1d1c-4fb8-8994-a20ca70ce0f9)
+![image](https://github.com/user-attachments/assets/354ba33c-ffcc-4109-a0d0-24d13eff16b8)
+
 
 ------------------------------------------------------------
 
