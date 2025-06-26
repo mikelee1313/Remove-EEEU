@@ -180,6 +180,7 @@ function Connect-SharePoint {
 
 # List of folders to ignore
 $ignoreFolders = @(
+    "VivaEngage",    #Viva Engage folder for Storyline attachments EEEU 
     "_catalogs",
     "_cts",
     "_private",
