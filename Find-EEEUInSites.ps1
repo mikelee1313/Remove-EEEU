@@ -21,7 +21,7 @@
 .NOTES
     File Name      : Find-EEEUInSites.ps1
     Author         : Mike Lee
-    Date Created   : 6/25/2025
+    Date Created   : 6/26/2025
 
     The script uses app-only authentication with a certificate thumbprint. Make sure the app has
     proper permissions in your tenant (Sites.FullControl.All is recommended).
