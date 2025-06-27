@@ -1,6 +1,6 @@
 <#
 .SYNOPSIS
-    Combined script to find and remove "Everyone Except External Users" (EEEU) group permissions from SharePoint Online sites.
+    Combined script to find and remove "Everyone Except External Users" (EEEU) group permissions from SharePoint Online and OneDrive sites.
 
 .DESCRIPTION
     This script connects to SharePoint Online using provided tenant-level credentials and iterates through a list of 
