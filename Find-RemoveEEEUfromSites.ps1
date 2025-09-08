@@ -22,7 +22,7 @@
 .NOTES
     File Name      : Find-RemoveEEEUfromSites.ps1
     Author         : Mike Lee
-    Date Created   : 6/26/2025
+    Date Created   : 9/28/2025
 
     The script uses app-only authentication with a certificate thumbprint. Make sure the app has
     proper permissions in your tenant (Sites.FullControl.All is recommended).
@@ -250,12 +250,12 @@ function Remove-EEEUPermissions {
                 Get-PnPProperty -ClientObject $RoleAssignment -Property RoleDefinitionBindings, Member
             }
             
-            if ($RoleAssignment.Member.LoginName -like $EEEU -and $RoleAssignment.RoleDefinitionBindings.name -ne 'Limited Access') {
+            if ($RoleAssignment.Member.LoginName -like $EEEU -and $RoleAssignment.RoleDefinitionBindings.name) {
                 $roleuser = $RoleAssignment.Member.LoginName
                 $rolelevel = $RoleAssignment.RoleDefinitionBindings
                 
                 foreach ($role in $rolelevel) {
-                    if ($role.Name -ne 'Limited Access') {
+                    if ($role.Name) {
                         try {
                             switch ($objectType) {
                                 "File" {
@@ -366,7 +366,7 @@ function Find-EEEUinWeb {
                     Get-PnPProperty -ClientObject $RoleAssignment -Property RoleDefinitionBindings, Member
                 }
                 
-                if ($RoleAssignment.Member.LoginName -like $EEEU -and $RoleAssignment.RoleDefinitionBindings.name -ne 'Limited Access') {
+                if ($RoleAssignment.Member.LoginName -like $EEEU -and $RoleAssignment.RoleDefinitionBindings.name) {
                     $eeeuFound = $true
                     $rolelevel = $RoleAssignment.RoleDefinitionBindings
                     foreach ($role in $rolelevel) {
@@ -450,7 +450,7 @@ function Find-EEEUinLists {
                         Get-PnPProperty -ClientObject $RoleAssignment -Property RoleDefinitionBindings, Member
                     }
                     
-                    if ($RoleAssignment.Member.LoginName -like $EEEU -and $RoleAssignment.RoleDefinitionBindings.name -ne 'Limited Access') {
+                    if ($RoleAssignment.Member.LoginName -like $EEEU -and $RoleAssignment.RoleDefinitionBindings.name) {
                         $eeeuFound = $true
                         $rolelevel = $RoleAssignment.RoleDefinitionBindings
                         foreach ($role in $rolelevel) {
@@ -561,7 +561,7 @@ function Find-EEEUinFolders {
                         Get-PnPProperty -ClientObject $RoleAssignment -Property RoleDefinitionBindings, Member
                     }
                     
-                    if ($RoleAssignment.Member.LoginName -like $EEEU -and $RoleAssignment.RoleDefinitionBindings.Name -ne 'Limited Access') {
+                    if ($RoleAssignment.Member.LoginName -like $EEEU -and $RoleAssignment.RoleDefinitionBindings.Name) {
                         $eeeuFound = $true
                         $rolelevel = $RoleAssignment.RoleDefinitionBindings
                         foreach ($role in $rolelevel) {
@@ -662,7 +662,7 @@ function Find-EEEUinFolders {
                             Get-PnPProperty -ClientObject $RoleAssignment -Property RoleDefinitionBindings, Member
                         }
                         
-                        if ($RoleAssignment.Member.LoginName -like $EEEU -and $RoleAssignment.RoleDefinitionBindings.Name -ne 'Limited Access') {
+                        if ($RoleAssignment.Member.LoginName -like $EEEU -and $RoleAssignment.RoleDefinitionBindings.Name) {
                             $eeeuFound = $true
                             $rolelevel = $RoleAssignment.RoleDefinitionBindings
                             foreach ($role in $rolelevel) {
@@ -799,7 +799,7 @@ function Find-EEEUinFiles {
                     Get-PnPProperty -ClientObject $RoleAssignment -Property RoleDefinitionBindings, Member
                 }
 
-                if ($RoleAssignment.Member.LoginName -like $EEEU -and $RoleAssignment.RoleDefinitionBindings.name -ne 'Limited Access') {
+                if ($RoleAssignment.Member.LoginName -like $EEEU -and $RoleAssignment.RoleDefinitionBindings.name) {
                     $eeeuFound = $true
                     $rolelevel = $RoleAssignment.RoleDefinitionBindings
                     foreach ($role in $rolelevel) {
@@ -976,6 +976,7 @@ Write-Host "Remove Permissions Mode: $removePermissions" -ForegroundColor $(if (
 Write-Log "Starting Find and Remove EEEU Script - Remove Mode: $removePermissions"
 
 $global:EEEUOccurrences = @()
+$global:TotalEEEUOccurrences = @()  # Create a new variable to track total occurrences across all sites
 $siteURLs = Read-SiteURLs -filePath $inputFilePath
 
 # Create an empty output file with headers
@@ -989,9 +990,18 @@ foreach ($siteURL in $siteURLs) {
     $global:TotalEEEUOccurrences += $global:EEEUOccurrences.Clone()
 }
 
-# Final summary
-$totalFound = $global:TotalEEEUOccurrences.Count
-$totalRemoved = ($global:TotalEEEUOccurrences | Where-Object { $_.Removed -eq $true }).Count
+# Final summary - count the actual occurrences and removals
+# Import the CSV to get accurate counts
+if (Test-Path $outputFilePath) {
+    $csvData = Import-Csv -Path $outputFilePath
+    $totalFound = $csvData.Count
+    $totalRemoved = ($csvData | Where-Object { $_.Removed -eq "True" }).Count
+}
+else {
+    # Fallback to the array count if CSV doesn't exist for some reason
+    $totalFound = ($global:TotalEEEUOccurrences | Measure-Object).Count
+    $totalRemoved = ($global:TotalEEEUOccurrences | Where-Object { $_.Removed -eq $true } | Measure-Object).Count
+}
 
 Write-Host "EEEU scan and removal completed!" -ForegroundColor Green
 Write-Host "Total EEEU occurrences found: $totalFound" -ForegroundColor Yellow
