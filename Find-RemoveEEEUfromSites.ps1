@@ -984,11 +984,14 @@ Write-EEEUOccurrencesToCSV -filePath $outputFilePath
 foreach ($siteURL in $siteURLs) {
     # Process the site and all its subsites recursively
     Invoke-SiteAndSubsitesProcessing -siteURL $siteURL
+    
+    # Add the site's occurrences to the total count
+    $global:TotalEEEUOccurrences += $global:EEEUOccurrences.Clone()
 }
 
 # Final summary
-$totalFound = ($global:EEEUOccurrences | Measure-Object).Count
-$totalRemoved = ($global:EEEUOccurrences | Where-Object { $_.Removed -eq $true } | Measure-Object).Count
+$totalFound = $global:TotalEEEUOccurrences.Count
+$totalRemoved = ($global:TotalEEEUOccurrences | Where-Object { $_.Removed -eq $true }).Count
 
 Write-Host "EEEU scan and removal completed!" -ForegroundColor Green
 Write-Host "Total EEEU occurrences found: $totalFound" -ForegroundColor Yellow
