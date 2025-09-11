@@ -24,7 +24,7 @@
     Date Created   : 6/26/2025
 
     The script uses app-only authentication with a certificate thumbprint. Make sure the app has
-    proper permissions in your tenant (Sites.FullControl.All is recommended).
+    proper permissions in your tenant (SharePoint: Sites.FullControl.All is recommended).
 
     The script ignores several system folders and lists to improve performance and avoid errors.
 
