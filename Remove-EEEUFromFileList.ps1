@@ -13,7 +13,7 @@
 .NOTES
     File Name      : Remove-EEEUFromFileList.ps1
     Author         : Mike Lee
-    Date           : 6/25/25
+    Date           : 9/22/25
 
 .DISCLAIMER
     Disclaimer: The sample scripts are provided AS IS without warranty of any kind. 
