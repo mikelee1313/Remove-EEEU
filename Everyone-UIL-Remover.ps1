@@ -31,7 +31,9 @@
     Author: Mike Lee
     Date Created: 9/22/25
     Requires: PnP.PowerShell module
-    Permissions Required: SharePoint Administrator or Site Collection Administrator
+    API Permissions Required: 
+    - SharePoint: Sites.FullControl.All (application permission)
+    - SharePoint: User.ReadWrite.All (application permission)
 
     IMPORTANT WARNINGS:
     - This operation is destructive and cannot be automatically undone
