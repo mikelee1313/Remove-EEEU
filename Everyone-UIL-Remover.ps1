@@ -76,7 +76,7 @@ $appID = "1e488dc4-1977-48ef-8d4d-9856f4e04536"
 $thumbprint = "5EAD7303A5C7E27DB4245878AD554642940BA082"
 
 # Script Behavior Settings
-$bypassConfirmation = $false # Set to $true to skip confirmation prompt (for automated scenarios)
+$bypassConfirmation = $true # Set to $true to skip confirmation prompt (for automated scenarios)
 
 # Logging Configuration
 $enableLogging = $true  # Set to $false to disable logging
@@ -335,24 +335,38 @@ function Invoke-SiteProcessing {
             # Try to get the specific user directly by display name using a targeted approach
             Write-Log "  Checking for: $specialUser" "INFO"
             
-            # Try to find the user efficiently using different approaches
+            # Try to find the user efficiently using targeted approaches
             $user = $null
             try {
                 Write-Log "    Searching for user: $specialUser" "INFO"
                 
-                # Try to get the user by title directly (most common case) with throttle protection
-                $users = Invoke-ThrottleProtectedCommand -OperationName "Get SharePoint Users" -ScriptBlock {
-                    Get-PnPUser
-                }
-                $user = $users | Where-Object { $_.Title -eq $specialUser } | Select-Object -First 1
-                
-                # Alternative: Also try searching by LoginName pattern for system accounts
-                if (-not $user) {
-                    if ($specialUser -eq "Everyone") {
-                        $user = $users | Where-Object { $_.LoginName -like "*c:0(.s|true*" } | Select-Object -First 1
+                # Method 1: Try direct lookup by known login patterns (most efficient)
+                if ($specialUser -eq "Everyone") {
+                    try {
+                        $user = Invoke-ThrottleProtectedCommand -OperationName "Get Everyone User Direct" -ScriptBlock {
+                            Get-PnPUser | Where-Object { $_.LoginName -like "*c:0(.s|true*" } | Select-Object -First 1
+                        }
                     }
-                    elseif ($specialUser -eq "Everyone except external users") {
-                        $user = $users | Where-Object { $_.LoginName -like "*spo-grid-all-users*" } | Select-Object -First 1
+                    catch {
+                        Write-Log "    Direct Everyone lookup failed, trying alternative method" "WARNING"
+                    }
+                }
+                elseif ($specialUser -eq "Everyone except external users") {
+                    try {
+                        $user = Invoke-ThrottleProtectedCommand -OperationName "Get EEEU User Direct" -ScriptBlock {
+                            Get-PnPUser | Where-Object { $_.LoginName -like "*spo-grid-all-users*" } | Select-Object -First 1
+                        }
+                    }
+                    catch {
+                        Write-Log "    Direct EEEU lookup failed, trying alternative method" "WARNING"
+                    }
+                }
+                
+                # Method 2: Fallback to title-based search if direct lookup failed
+                if (-not $user) {
+                    Write-Log "    Falling back to title-based search..." "INFO"
+                    $user = Invoke-ThrottleProtectedCommand -OperationName "Get User by Title" -ScriptBlock {
+                        Get-PnPUser | Where-Object { $_.Title -eq $specialUser } | Select-Object -First 1
                     }
                 }
             }
