@@ -76,7 +76,7 @@ $appID = "1e488dc4-1977-48ef-8d4d-9856f4e04536"
 $thumbprint = "5EAD7303A5C7E27DB4245878AD554642940BA082"
 
 # Script Behavior Settings
-$bypassConfirmation = $true # Set to $true to skip confirmation prompt (for automated scenarios)
+$bypassConfirmation = $false # Set to $true to skip confirmation prompt (for automated scenarios)
 
 # Logging Configuration
 $enableLogging = $true  # Set to $false to disable logging
