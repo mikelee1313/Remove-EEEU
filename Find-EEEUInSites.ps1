@@ -7,6 +7,8 @@
     site URLs specified in an input file. It recursively scans document libraries and lists (excluding specified folders) 
     to locate files where the "Everyone Except External Users" group has permissions assigned (excluding "Limited Access"). 
     The script logs its operations and outputs the results to a CSV file, detailing the site URL, file URL, and assigned roles.
+    
+    The script works with both standard SharePoint domains (contoso.sharepoint.com) and vanity domains (contoso.myspace.com).
 
 .PARAMETER None
     This script does not accept parameters via the command line. Configuration is done within the script.
@@ -22,6 +24,16 @@
     File Name      : Find-EEEUInSites.ps1
     Author         : Mike Lee
     Date Created   : 6/26/2025
+    Update History :
+        6/26/2025 - Initial script creation
+        7/02/2025 - Improved error handling and logging
+        7/10/2025 - Added folder-level permission checks
+        7/15/2025 - Enhanced URL encoding for file access
+        7/20/2025 - Added throttling handling with exponential backoff
+        7/25/2025 - Improved list URL retrieval logic
+        8/01/2025 - Added debug logging option
+        10/15/2025 - Updated to use latest PnP PowerShell module cmdlets
+        10/16/2025 - Add support for vanity domains
 
     The script uses app-only authentication with a certificate thumbprint. Make sure the app has
     proper permissions in your tenant (SharePoint: Sites.FullControl.All is recommended).
@@ -58,7 +70,7 @@ $outputFilePath = "$env:TEMP\Find_EEEU_In_Sites_$startime.csv"
 $debugLogging = $false  # Set to $true for verbose logging, $false for essential logging only
 
 # Path and file names
-$inputFilePath = "C:\temp\oversharedurls.txt" # Path to the input file containing site URLs
+$inputFilePath = "C:\temp\oversharedurls3.txt" # Path to the input file containing site URLs
 
 # List of folders to ignore
 $ignoreFolders = @(
@@ -263,7 +275,8 @@ function Get-AllItemsInFolderAbs {
 # Function to check for EEEU in web-level permissions
 function Find-EEEUinWeb {
     param (
-        [string]$siteURL
+        [string]$siteURL,
+        [ref]$EEEUOccurrences
     )
     try {
         Write-Host "Checking web-level permissions for $siteURL..." -ForegroundColor Yellow
@@ -298,10 +311,13 @@ function Find-EEEUinWeb {
                     Get-PnPProperty -ClientObject $RoleAssignment -Property RoleDefinitionBindings, Member
                 }
                 
-                if ($RoleAssignment.Member.LoginName -like $EEEU -and $RoleAssignment.RoleDefinitionBindings.name -ne 'Limited Access') {
+                if ($RoleAssignment.Member.LoginName -like $EEEU) {
                     $rolelevel = $RoleAssignment.RoleDefinitionBindings
                     foreach ($role in $rolelevel) {
-                        $roles += $role.Name
+                        # Only add roles that are not 'Limited Access'
+                        if ($role.Name -ne 'Limited Access') {
+                            $roles += $role.Name
+                        }
                     }   
                 }
             }
@@ -309,7 +325,7 @@ function Find-EEEUinWeb {
                 # Store "/" as the relative path for the root web
                 $relativeUrl = "/"
                 
-                $global:EEEUOccurrences += [PSCustomObject]@{
+                $newOccurrence = [PSCustomObject]@{
                     Url         = $SiteURL
                     ItemURL     = $relativeUrl
                     ItemType    = "Web"
@@ -318,8 +334,9 @@ function Find-EEEUinWeb {
                     OwnerEmail  = "N/A"
                     CreatedDate = "N/A"
                 }
+                $EEEUOccurrences.Value += $newOccurrence
                 Write-Host "Located EEEU at Web level on $SiteURL" -ForegroundColor Red
-                Write-Log "Located EEEU at Web level on $SiteURL"
+                Write-Log "Located EEEU at Web level on $SiteURL - Added to collection (Count: $($EEEUOccurrences.Value.Count))"
             }
         }
     }
@@ -331,7 +348,8 @@ function Find-EEEUinWeb {
 # Function to check for EEEU in list-level permissions
 function Find-EEEUinLists {
     param (
-        [string]$siteURL
+        [string]$siteURL,
+        [ref]$EEEUOccurrences
     )
     try {
         Write-Host "Checking list-level permissions for $siteURL..." -ForegroundColor Yellow
@@ -371,28 +389,70 @@ function Find-EEEUinLists {
                         Get-PnPProperty -ClientObject $RoleAssignment -Property RoleDefinitionBindings, Member
                     }
                     
-                    if ($RoleAssignment.Member.LoginName -like $EEEU -and $RoleAssignment.RoleDefinitionBindings.name -ne 'Limited Access') {
+                    if ($RoleAssignment.Member.LoginName -like $EEEU) {
                         $rolelevel = $RoleAssignment.RoleDefinitionBindings
                         foreach ($role in $rolelevel) {
-                            $roles += $role.Name
+                            # Only add roles that are not 'Limited Access'
+                            if ($role.Name -ne 'Limited Access') {
+                                $roles += $role.Name
+                            }
                         }   
                     }
                 }
                 if ($roles.Count -gt 0) {
-                    # Get relative path by checking if DefaultViewUrl has a full URL or is relative
-                    $relativeUrl = $list.DefaultViewUrl
-                    # If it's already a relative URL, use it as is
-                    # If it contains the site URL, convert to relative
-                    if ($relativeUrl.StartsWith("https://")) {
-                        # Remove the site URL part to get the relative path
-                        $uri = New-Object System.Uri($siteURL)
-                        $siteRoot = $uri.AbsolutePath
-                        if ($relativeUrl.Contains($siteURL)) {
-                            $relativeUrl = $relativeUrl.Replace($siteURL, "")
+                    # Get the list's root folder server relative URL instead of the DefaultViewUrl
+                    # This will give us the clean list URL without Forms/Views
+                    $relativeUrl = ""
+                    
+                    try {
+                        # Try to get the root folder URL with throttling protection
+                        $rootFolder = Invoke-WithRetry -ScriptBlock {
+                            Get-PnPProperty -ClientObject $list -Property RootFolder
+                        }
+                        if ($rootFolder -and $rootFolder.ServerRelativeUrl) {
+                            $relativeUrl = $rootFolder.ServerRelativeUrl
+                            Write-Log "Retrieved RootFolder URL for $($list.Title): $relativeUrl" "DEBUG"
                         }
                     }
+                    catch {
+                        Write-Log "Could not retrieve root folder for list $($list.Title): $_" "DEBUG"
+                    }
                     
-                    $global:EEEUOccurrences += [PSCustomObject]@{
+                    # If we can't get the root folder URL, fall back to constructing it from the list title
+                    if (-not $relativeUrl -or $relativeUrl -eq "") {
+                        # Parse the site URL to get the site path and construct the list path
+                        $uri = New-Object System.Uri($siteURL)
+                        $sitePath = $uri.AbsolutePath.TrimEnd('/')
+                        
+                        # Handle special case for Site Pages (should be SitePages, not "Site Pages")
+                        $listTitle = $list.Title
+                        if ($listTitle -eq "Site Pages") {
+                            $listTitle = "SitePages"
+                        }
+                        elseif ($listTitle -eq "Shared Documents") {
+                            # Documents library is often called "Shared Documents" in title but URL is just the folder name
+                            $listTitle = $listTitle.Replace(" ", "")
+                        }
+                        else {
+                            # For other lists, replace spaces with empty string (common SharePoint URL pattern)
+                            $listTitle = $listTitle.Replace(" ", "")
+                        }
+                        
+                        $relativeUrl = "$sitePath/$listTitle"
+                        Write-Log "Constructed fallback URL for $($list.Title): $relativeUrl" "DEBUG"
+                    }
+                    
+                    # Additional check: if the URL still contains Forms/ or other view paths, clean it up
+                    if ($relativeUrl -like "*/Forms/*" -or $relativeUrl -like "*/Forms" -or $relativeUrl -like "*/AllItems.aspx" -or $relativeUrl -like "*ByAuthor.aspx") {
+                        Write-Log "Cleaning up view path from URL: $relativeUrl" "DEBUG"
+                        # Remove /Forms and everything after it, or specific view files
+                        $relativeUrl = $relativeUrl -replace '/Forms.*$', ''
+                        $relativeUrl = $relativeUrl -replace '/AllItems\.aspx$', ''
+                        $relativeUrl = $relativeUrl -replace '/.*ByAuthor\.aspx$', ''
+                        Write-Log "Cleaned URL result: $relativeUrl" "DEBUG"
+                    }
+                    
+                    $newOccurrence = [PSCustomObject]@{
                         Url         = $SiteURL
                         ItemURL     = $relativeUrl
                         ItemType    = "List"
@@ -401,8 +461,9 @@ function Find-EEEUinLists {
                         OwnerEmail  = "N/A"
                         CreatedDate = "N/A"
                     }
+                    $EEEUOccurrences.Value += $newOccurrence
                     Write-Host "Located EEEU at List level: $($list.Title) on $SiteURL" -ForegroundColor Red
-                    Write-Log "Located EEEU at List level: $($list.Title) on $SiteURL"
+                    Write-Log "Located EEEU at List level: $($list.Title) on $SiteURL - Added to collection (Count: $($EEEUOccurrences.Value.Count))"
                 }
             }
         }
@@ -416,7 +477,8 @@ function Find-EEEUinLists {
 function Find-EEEUinFolders {
     param (
         [string]$siteURL,
-        [string]$listTitle
+        [string]$listTitle,
+        [ref]$EEEUOccurrences
     )
     try {
         Write-Host "Checking folder-level permissions in list '$listTitle'..." -ForegroundColor Yellow
@@ -472,10 +534,13 @@ function Find-EEEUinFolders {
                         Get-PnPProperty -ClientObject $RoleAssignment -Property RoleDefinitionBindings, Member
                     }
                     
-                    if ($RoleAssignment.Member.LoginName -like $EEEU -and $RoleAssignment.RoleDefinitionBindings.Name -ne 'Limited Access') {
+                    if ($RoleAssignment.Member.LoginName -like $EEEU) {
                         $rolelevel = $RoleAssignment.RoleDefinitionBindings
                         foreach ($role in $rolelevel) {
-                            $roles += $role.Name
+                            # Only add roles that are not 'Limited Access'
+                            if ($role.Name -ne 'Limited Access') {
+                                $roles += $role.Name
+                            }
                         }   
                     }
                 }
@@ -511,7 +576,7 @@ function Find-EEEUinFolders {
                         Write-Log "Error retrieving folder owner information: $_" "WARNING"
                     }
                     
-                    $global:EEEUOccurrences += [PSCustomObject]@{
+                    $newOccurrence = [PSCustomObject]@{
                         Url         = $SiteURL
                         ItemURL     = $folderUrl
                         ItemType    = "Folder"
@@ -520,8 +585,9 @@ function Find-EEEUinFolders {
                         OwnerEmail  = $ownerEmail
                         CreatedDate = $createdDate
                     }
+                    $EEEUOccurrences.Value += $newOccurrence
                     Write-Host "Located EEEU at Folder level: $folderName on $SiteURL" -ForegroundColor Red
-                    Write-Log "Located EEEU at Folder level: $folderName on $SiteURL"
+                    Write-Log "Located EEEU at Folder level: $folderName on $SiteURL - Added to collection (Count: $($EEEUOccurrences.Value.Count))"
                 }
             }
         }
@@ -558,15 +624,18 @@ function Find-EEEUinFolders {
                             Get-PnPProperty -ClientObject $RoleAssignment -Property RoleDefinitionBindings, Member
                         }
                         
-                        if ($RoleAssignment.Member.LoginName -like $EEEU -and $RoleAssignment.RoleDefinitionBindings.Name -ne 'Limited Access') {
+                        if ($RoleAssignment.Member.LoginName -like $EEEU) {
                             $rolelevel = $RoleAssignment.RoleDefinitionBindings
                             foreach ($role in $rolelevel) {
-                                $roles += $role.Name
+                                # Only add roles that are not 'Limited Access'
+                                if ($role.Name -ne 'Limited Access') {
+                                    $roles += $role.Name
+                                }
                             }   
                         }
                     }
                     if ($roles.Count -gt 0) {
-                        $global:EEEUOccurrences += [PSCustomObject]@{
+                        $newOccurrence = [PSCustomObject]@{
                             Url         = $SiteURL
                             ItemURL     = $rootFolder.ServerRelativeUrl
                             ItemType    = "Folder"
@@ -575,8 +644,9 @@ function Find-EEEUinFolders {
                             OwnerEmail  = "N/A"
                             CreatedDate = "N/A"
                         }
+                        $EEEUOccurrences.Value += $newOccurrence
                         Write-Host "Located EEEU at Root Folder level: $($list.Title) on $SiteURL" -ForegroundColor Red
-                        Write-Log "Located EEEU at Root Folder level: $($list.Title) on $SiteURL"
+                        Write-Log "Located EEEU at Root Folder level: $($list.Title) on $SiteURL - Added to collection (Count: $($EEEUOccurrences.Value.Count))"
                     }
                 }
             }
@@ -601,7 +671,9 @@ function Find-EEEUinFolders {
 # Update the existing Find-EEEUinFiles function to include ItemType
 function Find-EEEUinFiles {
     param (
-        $item
+        $item,
+        [string]$siteURL,
+        [ref]$EEEUOccurrences
     )
     try {
         $file = @()
@@ -633,7 +705,7 @@ function Find-EEEUinFiles {
                 $skipEncoding = $true
                 foreach ($part in $urlParts) {
                     # Skip encoding for the protocol and domain parts
-                    if ($skipEncoding -and ($part -eq "https:" -or $part -eq "" -or $part -like "*.sharepoint.com")) {
+                    if ($skipEncoding -and ($part -eq "https:" -or $part -eq "" -or $part -match "^[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$")) {
                         $encodedParts += $part
                     }
                     else {
@@ -680,10 +752,13 @@ function Find-EEEUinFiles {
                     Get-PnPProperty -ClientObject $RoleAssignment -Property RoleDefinitionBindings, Member
                 }
 
-                if ($RoleAssignment.Member.LoginName -like $EEEU -and $RoleAssignment.RoleDefinitionBindings.name -ne 'Limited Access') {
+                if ($RoleAssignment.Member.LoginName -like $EEEU) {
                     $rolelevel = $RoleAssignment.RoleDefinitionBindings
                     foreach ($role in $rolelevel) {
-                        $roles += $role.Name
+                        # Only add roles that are not 'Limited Access'
+                        if ($role.Name -ne 'Limited Access') {
+                            $roles += $role.Name
+                        }
                     }   
                 }
             }
@@ -719,7 +794,7 @@ function Find-EEEUinFiles {
                     Write-Log "Error retrieving file owner information: $_" "WARNING"
                 }
 
-                $global:EEEUOccurrences += [PSCustomObject]@{
+                $newOccurrence = [PSCustomObject]@{
                     Url         = $SiteURL
                     ItemURL     = $file.FieldValues.FileRef
                     ItemType    = "File"
@@ -728,8 +803,9 @@ function Find-EEEUinFiles {
                     OwnerEmail  = $ownerEmail
                     CreatedDate = $createdDate
                 }
+                $EEEUOccurrences.Value += $newOccurrence
                 Write-Host "Located EEEU in file: $($file.FieldValues.FileLeafRef) on $SiteURL" -ForegroundColor Red
-                Write-Log "Located EEEU in file: $($file.FieldValues.FileLeafRef) on $SiteURL"
+                Write-Log "Located EEEU in file: $($file.FieldValues.FileLeafRef) on $SiteURL - Added to collection (Count: $($EEEUOccurrences.Value.Count))"
             }
         }
     }
@@ -753,7 +829,18 @@ function Write-EEEUOccurrencesToCSV {
         }
 
         # Group by URL, Item URL, ItemType and Roles to remove duplicates
+        # Also handle cases where we might have both Forms paths and clean paths for the same list
         $uniqueOccurrences = $OccurrencesData | 
+        ForEach-Object {
+            # Clean up any remaining Forms paths in the ItemURL before deduplication
+            if ($_.ItemURL -like "*/Forms/*" -or $_.ItemURL -like "*/Forms" -or $_.ItemURL -like "*/AllItems.aspx" -or $_.ItemURL -like "*ByAuthor.aspx") {
+                # Remove /Forms and everything after it, or specific view files
+                $_.ItemURL = $_.ItemURL -replace '/Forms.*$', ''
+                $_.ItemURL = $_.ItemURL -replace '/AllItems\.aspx$', ''
+                $_.ItemURL = $_.ItemURL -replace '/.*ByAuthor\.aspx$', ''
+            }
+            $_
+        } |
         Group-Object -Property Url, ItemURL, ItemType, RoleNames | 
         ForEach-Object { $_.Group[0] }
         
@@ -816,36 +903,44 @@ function Process-SiteAndSubsites {
     Write-Host "Processing site: $siteURL" -ForegroundColor Green
     Write-Log "Processing site: $siteURL"
     
-    # Clear the global collection for this site
-    $global:EEEUOccurrences = @()
+    # Initialize local collection for this site (don't clear global yet)
+    $siteEEEUOccurrences = @()
     
     if (Connect-SharePoint -siteURL $siteURL) {
         # Check web-level permissions
-        Find-EEEUinWeb -siteURL $siteURL
+        Find-EEEUinWeb -siteURL $siteURL -EEEUOccurrences ([ref]$siteEEEUOccurrences)
         
         # Check list-level permissions
-        Find-EEEUinLists -siteURL $siteURL
+        Find-EEEUinLists -siteURL $siteURL -EEEUOccurrences ([ref]$siteEEEUOccurrences)
         
         # Get all lists and libraries with throttling protection
         $lists = Invoke-WithRetry -ScriptBlock {
-            Get-PnPList | Where-Object { $_.Title -notin $ignoreFolders -and -not $_.Hidden } | Select-Object Title, id, Url
+            Get-PnPList | Where-Object { $_.Title -notin $ignoreFolders -and -not $_.Hidden }
         }
         
         foreach ($list in $lists) {
             # Check folder-level permissions
-            Find-EEEUinFolders -siteURL $siteURL -listTitle $list.Title
+            Find-EEEUinFolders -siteURL $siteURL -listTitle $list.Title -EEEUOccurrences ([ref]$siteEEEUOccurrences)
             
             # Check file-level permissions
             $allItems = Get-AllItemsInFolderAbs -siteURL $siteURL -folderUrl $list.Title
             foreach ($item in $allItems) {
-                Find-EEEUinFiles -item $item
+                Find-EEEUinFiles -item $item -siteURL $siteURL -EEEUOccurrences ([ref]$siteEEEUOccurrences)
             }
         }
         
         # Write the results for this site collection to the CSV
-        if ($global:EEEUOccurrences.Count -gt 0) {
-            Write-Host "Writing $($global:EEEUOccurrences.Count) EEEU occurrences from $siteURL to CSV..." -ForegroundColor Cyan
-            Write-EEEUOccurrencesToCSV -filePath $outputFilePath -Append -OccurrencesData $global:EEEUOccurrences
+        if ($siteEEEUOccurrences.Count -gt 0) {
+            Write-Host "Writing $($siteEEEUOccurrences.Count) EEEU occurrences from $siteURL to CSV..." -ForegroundColor Cyan
+            Write-Log "About to write $($siteEEEUOccurrences.Count) EEEU occurrences from $siteURL to CSV"
+            
+            # Debug: Log each occurrence before writing
+            foreach ($occurrence in $siteEEEUOccurrences) {
+                Write-Log "DEBUG - Occurrence: URL=$($occurrence.Url), ItemURL=$($occurrence.ItemURL), Type=$($occurrence.ItemType), Roles=$($occurrence.RoleNames)" "DEBUG"
+            }
+            
+            Write-EEEUOccurrencesToCSV -filePath $outputFilePath -Append -OccurrencesData $siteEEEUOccurrences
+            Write-Log "Finished writing occurrences to CSV"
         }
         else {
             Write-Host "No EEEU occurrences found in $siteURL" -ForegroundColor Green
@@ -874,7 +969,6 @@ function Process-SiteAndSubsites {
 }
 
 # Main script execution
-$global:EEEUOccurrences = @()
 $siteURLs = Read-SiteURLs -filePath $inputFilePath
 
 # Create an empty output file with headers
