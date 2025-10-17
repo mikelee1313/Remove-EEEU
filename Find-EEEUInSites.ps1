@@ -193,11 +193,14 @@ function Invoke-WithRetry {
             }
             else {
                 # Not a throttling error, rethrow
-                # Check if it's an expected object reference error and log as DEBUG
+                # Check if it's an expected error that we can handle gracefully
                 if ($_.Exception.Message -like "*Object reference not set to an instance of an object*" -or 
                     $_.Exception.Message -like "*ListItemAllFields*" -or
                     $_.Exception.Message -like "*object is associated with property*") {
                     Write-Log "Expected retrieval error (likely null object reference): $($_.Exception.Message)" "DEBUG"
+                }
+                elseif ($_.Exception.Message -like "*does not exist at site*") {
+                    Write-Log "Resource not found (likely folder/list doesn't exist): $($_.Exception.Message)" "DEBUG"
                 }
                 else {
                     Write-Log "General Error occurred During retrieval : $($_.Exception.Message)" "WARNING"
@@ -241,33 +244,33 @@ function Connect-SharePoint {
 function Get-AllItemsInFolderAbs {
     param (
         [string]$siteURL,
-        [string]$folderUrl
+        [string]$listTitleOrUrl
     )
     try {
         $allItems = @()
-        if ($folderUrl) {
-            # Check if folderUrl is not empty
+        if ($listTitleOrUrl) {
+            # Get items from the list/library (not treating it as a folder URL)
             $items = Invoke-WithRetry -ScriptBlock {
-                Get-PnPListItem -List $folderUrl -PageSize 500
+                Get-PnPListItem -List $listTitleOrUrl -PageSize 500
             }
-            $allItems += $items | Where-Object { $_["FileLeafRef"] -like "*.*" }
-
-            $subFolders = Invoke-WithRetry -ScriptBlock {
-                Get-PnPFolderItem -FolderSiteRelativeUrl $folderUrl -ItemType Folder
-            }
-            foreach ($folder in $subFolders) {
-                if ($folder.Name -notin $ignoreFolders) {
-                    $allItems += Get-AllItemsInFolderAbs -siteURL $siteURL -folderUrl $folder.ServerRelativeUrl
-                }
-                else {
-                    #Write-Log "Ignoring folder: $($folder.DisplayName)"
-                }
+            # Only get files (items with file extensions)
+            $allItems += $items | Where-Object { 
+                $_ -ne $null -and 
+                $_["FileLeafRef"] -ne $null -and 
+                $_["FileLeafRef"] -like "*.*" -and
+                $_["FSObjType"] -ne 1  # Exclude folders (FSObjType = 1 means folder)
             }
         }
         return $allItems
     }
     catch {
-        Write-Log "Failed to retrieve items from folder $folderUrl : $_" "ERROR"
+        # Check if it's a "list does not exist" error and handle it more gracefully
+        if ($_.Exception.Message -like "*does not exist at site*") {
+            Write-Log "List/Library '$listTitleOrUrl' not found or not accessible. Skipping file retrieval." "DEBUG"
+        }
+        else {
+            Write-Log "Failed to retrieve items from list '$listTitleOrUrl': $_" "WARNING"
+        }
         return @()
     }
 }
@@ -676,6 +679,12 @@ function Find-EEEUinFiles {
         [ref]$EEEUOccurrences
     )
     try {
+        # Add null checks for the item and its properties
+        if ($null -eq $item -or $null -eq $item.FieldValues -or $null -eq $item.FieldValues.FileRef) {
+            Write-Log "Item or FileRef is null, skipping file processing" "DEBUG"
+            return
+        }
+        
         $file = @()
         $fileUrl = $item.FieldValues.FileRef
         
@@ -923,9 +932,11 @@ function Process-SiteAndSubsites {
             Find-EEEUinFolders -siteURL $siteURL -listTitle $list.Title -EEEUOccurrences ([ref]$siteEEEUOccurrences)
             
             # Check file-level permissions
-            $allItems = Get-AllItemsInFolderAbs -siteURL $siteURL -folderUrl $list.Title
+            $allItems = Get-AllItemsInFolderAbs -siteURL $siteURL -listTitleOrUrl $list.Title
             foreach ($item in $allItems) {
-                Find-EEEUinFiles -item $item -siteURL $siteURL -EEEUOccurrences ([ref]$siteEEEUOccurrences)
+                if ($item -ne $null) {
+                    Find-EEEUinFiles -item $item -siteURL $siteURL -EEEUOccurrences ([ref]$siteEEEUOccurrences)
+                }
             }
         }
         
