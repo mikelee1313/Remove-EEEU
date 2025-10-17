@@ -72,29 +72,28 @@ $debugLogging = $false  # Set to $true for verbose logging, $false for essential
 # Path and file names
 $inputFilePath = "C:\temp\oversharedurls3.txt" # Path to the input file containing site URLs
 
-# List of folders to ignore
-$ignoreFolders = @(
-    "VivaEngage",    #Viva Engage folder for Storyline attachments EEEU is read by default
-    "Style Library",
-    "_catalogs",
-    "_cts",
-    "_private",
-    "_vti_pvt",
-    "Reference 778a30bb4f074ae3bec315889ee34b88",
-    "Sharing Links",
-    "Social",
-    "FavoriteLists-e0157a47-72e4-43c1-bfd0-ed9f7040e894",
-    "User Information List",
-    "Web Template Extensions",
-    "SmartCache-8189C6B3-4081-4F62-9015-35FDB7FDF042",
-    "SharePointHomeCacheList",
-    "RecentLists-56BAEAB4-E7AD-4E59-B92B-9290D871F5C3",
-    "PersonalCacheLibrary",
-    "microsoft.ListSync.Endpoints",
-    "Maintenance Log Library",
-    "DO_NOT_DELETE_ENTERPRISE_USER_CONTAINER_ENUM_LIST_ee0de9c4-6398-408f-ac09-f0401edfb0bf",
-    "appfiles",
-    "Reference, 778a30bb4f074ae3bec315889ee34b88"
+# List of folder patterns to ignore (uses wildcard matching for better tenant compatibility)
+$ignoreFolderPatterns = @(
+    "*VivaEngage*",    #Viva Engage folder for Storyline attachments EEEU is read by default
+    "*Style Library*",
+    "*_catalogs*",
+    "*_cts*",
+    "*_private*",
+    "*_vti_pvt*",
+    "*Reference*",  # Matches any folder with "Reference" and a GUID
+    "*Sharing Links*",
+    "*Social*",
+    "*FavoriteLists*",  # Matches FavoriteLists with any GUID
+    "*User Information List*",
+    "*Web Template Extensions*",
+    "*SmartCache*",  # Matches SmartCache with any GUID
+    "*SharePointHomeCacheList*",
+    "*RecentLists*",  # Matches RecentLists with any GUID
+    "*PersonalCacheLibrary*",
+    "*microsoft.ListSync.Endpoints*",
+    "*Maintenance Log Library*",
+    "*DO_NOT_DELETE_ENTERPRISE_USER_CONTAINER_ENUM_LIST*",  # Matches with any GUID
+    "*appfiles*"
 )
 
 # Permission levels to check
@@ -360,7 +359,17 @@ function Find-EEEUinLists {
         
         # Get all lists and libraries with throttling protection
         $lists = Invoke-WithRetry -ScriptBlock {
-            Get-PnPList | Where-Object { $_.Title -notin $ignoreFolders }
+            Get-PnPList | Where-Object { 
+                $listTitle = $_.Title
+                $shouldIgnore = $false
+                foreach ($pattern in $ignoreFolderPatterns) {
+                    if ($listTitle -like $pattern) {
+                        $shouldIgnore = $true
+                        break
+                    }
+                }
+                -not $shouldIgnore
+            }
         }
 
         foreach ($list in $lists) {
@@ -509,8 +518,15 @@ function Find-EEEUinFolders {
             $folderName = $folderItem["FileLeafRef"]
             $folderUrl = $folderItem["FileRef"]
             
-            # Skip ignored folders
-            if ($folderName -in $ignoreFolders) {
+            # Skip ignored folders using wildcard patterns
+            $shouldIgnoreFolder = $false
+            foreach ($pattern in $ignoreFolderPatterns) {
+                if ($folderName -like $pattern) {
+                    $shouldIgnoreFolder = $true
+                    break
+                }
+            }
+            if ($shouldIgnoreFolder) {
                 continue
             }
             
@@ -688,9 +704,11 @@ function Find-EEEUinFiles {
         $file = @()
         $fileUrl = $item.FieldValues.FileRef
         
-        # Check if the file URL contains any of the ignore folders
-        foreach ($ignoreFolder in $ignoreFolders) {
-            if ($fileUrl -like "*/$ignoreFolder/*" -or $fileUrl -like "*/$ignoreFolder") {
+        # Check if the file URL contains any of the ignore folder patterns
+        foreach ($ignorePattern in $ignoreFolderPatterns) {
+            # Remove wildcards from pattern for URL matching
+            $cleanPattern = $ignorePattern.Replace("*", "")
+            if ($fileUrl -like "*/$cleanPattern/*" -or $fileUrl -like "*/$cleanPattern") {
                 return # Skip processing the ignored file
             }
         }
@@ -924,7 +942,7 @@ function Process-SiteAndSubsites {
         
         # Get all lists and libraries with throttling protection
         $lists = Invoke-WithRetry -ScriptBlock {
-            Get-PnPList | Where-Object { $_.Title -notin $ignoreFolders -and -not $_.Hidden }
+            Get-PnPList | Where-Object { -not $_.Hidden -and -not ($ignoreFolderPatterns | Where-Object { $_.Title -like $_ }) }
         }
         
         foreach ($list in $lists) {
